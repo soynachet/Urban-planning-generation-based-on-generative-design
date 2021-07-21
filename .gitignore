@@ -1,0 +1,12 @@
+# IDE files
+.idea
+src/.vscode/
+src/__pycache__/
+# rhino backup model
+*.3dm.rhl
+*.3dmbak
+# document directories
+/antrag/
+/wip-docs/
+# temp folder in src
+/cad-model/wip-cad/
