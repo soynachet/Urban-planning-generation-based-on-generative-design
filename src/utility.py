@@ -28,11 +28,12 @@ def offset_plot(plot_polylines, street_width):
     return offset_plots
 
 
-def plot_type(polycurve, building_width, block_factor_min_dis):
-    curve = offset_curve(polycurve, block_factor_min_dis * building_width)
+def plot_type(polycurve, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor):
+    curve = offset_curve(polycurve, block_min_dis_factor * building_width)
     pol_in_plot = offset_curve(polycurve, building_width)
     if curve:
-        return brep_from_loft(pol_in_plot, polycurve) 
+        #return brep_from_loft(pol_in_plot, polycurve)
+        return houses_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor)
     else:
         pass
         #return polycurve
@@ -51,11 +52,61 @@ def brep_from_loft(polycurve1, polycurve2):
     else:
         return []
 
-def houses_in_line(line, building_width):
+def house_pol(p0, tangent, normal, house_length, building_width):
+    p1 = p0 + tangent * house_length
+    p2 = p1 + normal * building_width
+    p3 = p0 + normal * building_width
+    return rg.Polyline([p0,p1,p2,p3,p0]).ToNurbsCurve()
 
 
-def brep_no_corner(polycurve, building_width):
+def houses_in_line(line, building_width, block_length_factor, block_line_length_factor):
+    scaled_line = scale_curve(line, block_line_length_factor)
+    length = scaled_line.Length
+    tangent = scaled_line.UnitTangent
+    normal = rg.Vector3d.CrossProduct(tangent, rg.Vector3d(0,0,1))
+    p0 = scaled_line.PointAt(0)
+    houses_nr = int(math.floor(length / (building_width * block_length_factor)))
+    house_pols = [length, line]
+    if houses_nr > 0:
+        house_length = length / houses_nr
+        for i in range(0, houses_nr):
+            house = house_pol(p0, tangent, normal, house_length, building_width)
+            house_pols.append(house)
+            p0 += tangent * house_length
+    return house_pols
+
+
+def remove_housing_clashes(houses, building_high):
+    houses.sort()
+    houses.reverse()
+    non_clashing_houses = []
+    for i, sublist in enumerate(houses):
+        for house_curve in sublist[2:]:
+            clashing = False
+            for j, sublist2 in enumerate(houses):
+                if i != j and i > j:
+                    for house_curve2 in sublist2[2:]:
+                        if rg.Intersect.Intersection.CurveCurve(house_curve, house_curve2, building_high * 0.4, 0.01).Count > 0:
+                            clashing = True
+            for k, sublist3 in enumerate(houses):
+                if i != k:
+                    if rg.Intersect.Intersection.CurveLine(house_curve, sublist3[1], 0, 0).Count > 0:
+                        clashing = True
+            if clashing == False:
+                non_clashing_houses.append(house_curve)
+            #non_clashing_houses.append(sublist2[1])
+    return non_clashing_houses
+
+ 
+def houses_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     lines = polycurve.GetSegments()
+    houses = []
+    for line in lines:
+        houses.append(houses_in_line(line, building_width, block_length_factor, block_line_length_factor))
+    non_clashing_houses = remove_housing_clashes(houses, building_high)
+    house_solids = extrude_curves(non_clashing_houses, -building_high)
+    return house_solids
+    
 
 def compute_all_possible_combinations(goal, coin_lst):
     """The coin change algorithm
@@ -72,15 +123,15 @@ def compute_all_possible_combinations(goal, coin_lst):
             all_changes.append(combo)
     return all_changes
 
-def scale_curve(curve, curve_length):
+
+def scale_curve(curve, curve_length_factor):
     """reduce the extension of the input curve by a porcentage defined by the parameter curve_length"""
     # curve input is actually a line
-    curve_length /= 100
     len = curve.Length
     p0 = curve.PointAt(0.5)
     vec = curve.UnitTangent
-    p1 = p0 - ((vec * len * curve_length) / 2 )
-    p2 = p0 + ((vec * len * curve_length) / 2 )
+    p1 = p0 - ((vec * len * curve_length_factor) / 2 )
+    p2 = p0 + ((vec * len * curve_length_factor) / 2 )
     new_curve = rg.Line(p1, p2)
     return new_curve
 
@@ -114,10 +165,12 @@ def sort_by_variance(lst):
             short_sorted_list.append(sublst)
     return short_sorted_list
 
-def create_floorplate(building_outline_pol):
-    """generate groundfloor floorplate brep"""
-    brep = rg.Extrusion.Create(building_outline_pol.ToNurbsCurve(), 0.3, True) # floorplate 30 cm thickness
-    return [brep]
+def extrude_curves(houses, building_high):
+    breps = []
+    for house_curve in houses:
+        breps.append(rg.Extrusion.Create(house_curve, building_high, True))
+    return breps
+
 
 def create_colors():
     """Assign color to apartment based on tag"""
@@ -127,6 +180,7 @@ def create_colors():
     color_core = System.Drawing.Color.FromArgb(160, 160, 160)
     colors = {'slab' : color_slab, 'column': color_column, 'core' : color_core}
     return colors
+
 
 def extrusion_to_colored_mesh(ext, color):
     """Convert extrusion object to colored monotone mesh with specific color"""
