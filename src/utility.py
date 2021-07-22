@@ -4,6 +4,7 @@ import math
 from operator import itemgetter
 from itertools import combinations_with_replacement
 import ghpythonlib as gh
+import System
 
 
 def offset_curve(polycurve, offset_distance, direction = 1):
@@ -28,15 +29,25 @@ def offset_plot(plot_polylines, street_width):
     return offset_plots
 
 
-def plot_type(polycurve, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor):
+def plot_type(polycurve, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, color):
     curve = offset_curve(polycurve, block_min_dis_factor * building_width)
     pol_in_plot = offset_curve(polycurve, building_width)
-    if curve:
-        #return brep_from_loft(pol_in_plot, polycurve)
-        return houses_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor)
-    else:
+    rgb = System.Drawing.Color.FromArgb(255, 171, 74)
+    try:
+        if curve:
+            breps = houses_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor)
+            if color:
+                return visualize_apartments(breps, rgb)
+            else:
+                return breps
+        else:
+            breps =  block_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor)
+            if color:
+                return visualize_apartments(breps, rgb)
+            else:
+                return breps
+    except:
         pass
-        #return polycurve
 
 
 def radians_to_degrees(angle):
@@ -94,7 +105,6 @@ def remove_housing_clashes(houses, building_high):
                         clashing = True
             if clashing == False:
                 non_clashing_houses.append(house_curve)
-            #non_clashing_houses.append(sublist2[1])
     return non_clashing_houses
 
  
@@ -108,20 +118,18 @@ def houses_in_quartier(polycurve, building_width, building_high, block_length_fa
     return house_solids
     
 
-def compute_all_possible_combinations(goal, coin_lst):
-    """The coin change algorithm
-    Given list of coins and amount, find all possible combinations"""
-    if goal < 0:
-        return []
-    if goal == 0:
-        return [[]]
-    all_changes = []
-    for last_used_coin in coin_lst:
-        combos = compute_all_possible_combinations(goal - last_used_coin, coin_lst)
-        for combo in combos:
-            combo.append(last_used_coin)
-            all_changes.append(combo)
-    return all_changes
+def block_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
+    lines = polycurve.GetSegments()
+    lines_length = [line.Length for line in lines]
+    ziped_list = zip(lines_length, lines)
+    ziped_list.sort()
+    ziped_list.reverse()
+    line = ziped_list[0][1]
+    house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor)
+    #non_clashing_houses = remove_housing_clashes(house_pols, building_high)
+    house_solids = extrude_curves(house_pols[2:], -building_high)
+    return house_solids
+
 
 
 def scale_curve(curve, curve_length_factor):
@@ -135,35 +143,6 @@ def scale_curve(curve, curve_length_factor):
     new_curve = rg.Line(p1, p2)
     return new_curve
 
-def variance(data):
-    """determine the variance between a list of axis"""
-    # Number of observations
-    n = len(data)
-    # Mean of the data
-    mean = sum(data) / n
-    # Square deviations
-    deviations = [(x - mean) ** 2 for x in data]
-    # Variance
-    variance = sum(deviations) / (n - 1)
-    return variance
-
-
-def sort_by_variance(lst):
-    """sorting out first the axis that has less variance"""
-    variance_lst = []
-    for sublst in lst:
-        variance_lst.append(variance(sublst))
-    # pair variance_lst and lst elements
-    zipped_lists = zip(variance_lst, lst)
-    # sort by first element of each pair
-    sorted_zipped_lists = sorted(zipped_lists, reverse=False)
-    sorted_list = [element for _, element in sorted_zipped_lists]
-    #get the first 10 elements
-    short_sorted_list = []
-    for i, sublst in enumerate(sorted_list):
-        if i < 10:
-            short_sorted_list.append(sublst)
-    return short_sorted_list
 
 def extrude_curves(houses, building_high):
     breps = []
@@ -205,10 +184,6 @@ def visualize_apartments(breps, color):
         geo.append(colorMsh)  # colored meshes
         geo += brep.GetWireframe()  # wire-frame curves
     return geo
-
-
-
-
 
 
 def flatten_lst(lst):
