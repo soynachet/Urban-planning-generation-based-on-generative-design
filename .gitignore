@@ -7,3 +7,5 @@ src/__pycache__/
 *.3dmbak
 # document directories
 /rhino/
+# temp folder in src
+/cad-model/wip-cad/
