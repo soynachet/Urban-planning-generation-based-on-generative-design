@@ -4,8 +4,6 @@ from utility import *
 import Rhino
 import Rhino.Geometry as rg
 
-
-
 class Buildings:
 
     def __init__ (self, plot_polylines, street_width, building_width, block_factor_min_dis):

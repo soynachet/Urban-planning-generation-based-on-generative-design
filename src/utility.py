@@ -32,10 +32,7 @@ def plot_type(polycurve, building_width, block_factor_min_dis):
     curve = offset_curve(polycurve, block_factor_min_dis * building_width)
     pol_in_plot = offset_curve(polycurve, building_width)
     if curve:
-        #return rg.Brep.CreateFromLoft([pol_in_plot.ToNurbsCurve(), polycurve.ToNurbsCurve()], rg.Point3d.Unset, rg.Point3d.Unset, rg.LoftType.Straight, False)[0]
-        polycurve.DeleteShortSegments(building_width)
-        breps = brep_no_corner(polycurve, building_width)
-        return breps
+        return brep_from_loft(pol_in_plot, polycurve) 
     else:
         pass
         #return polycurve
@@ -54,62 +51,110 @@ def brep_from_loft(polycurve1, polycurve2):
     else:
         return []
 
+def houses_in_line(line, building_width):
+
+
 def brep_no_corner(polycurve, building_width):
     lines = polycurve.GetSegments()
-    tangents = [line.UnitTangent for line in lines]
-    lengths = [line.Length for line in lines]
-    angles = []
-    for i in range(0, len(lines)):
-        if i < len(lines) - 1:
-            angles.append(rg.Vector3d.VectorAngle(tangents[i], tangents[i+1]))
-        else:
-            angles.append(rg.Vector3d.VectorAngle(tangents[i], tangents[-1]))
 
-   	points = [[]]
+def compute_all_possible_combinations(goal, coin_lst):
+    """The coin change algorithm
+    Given list of coins and amount, find all possible combinations"""
+    if goal < 0:
+        return []
+    if goal == 0:
+        return [[]]
+    all_changes = []
+    for last_used_coin in coin_lst:
+        combos = compute_all_possible_combinations(goal - last_used_coin, coin_lst)
+        for combo in combos:
+            combo.append(last_used_coin)
+            all_changes.append(combo)
+    return all_changes
 
-    for i in range(0, len(lines)):
-        if i != len(lines):
-            if int(round(radians_to_degrees(angles[i])/3, 0)) == 30:
-                if lines[i].PointAt(0) not in points[-1]:
-                    points[-1].append(lines[i].PointAt(0))
-                if lines[i].PointAt(1) not in points[-1]:
-                    points[-1].append(lines[i].PointAt(1))
-                if lines[i+1].PointAt(0) not in points[-1]:
-                    points[-1].append(lines[i+1].PointAt(0))
-                if lines[i+1].PointAt(1) not in points[-1]:
-                    points[-1].append(lines[i+1].PointAt(1))
-            else:
-                points.append([])
-                if lines[i].PointAt(0) not in points[-2]:
-                    points[-1].append(lines[i].PointAt(0))
-                #if lines[i].PointAt(1) not in points[-2]:
-                    points[-1].append(lines[i].PointAt(1))
-        if i == len(lines):
-            if int(round(radians_to_degrees(angles[i])/3, 0)) == 30:
-                points = points[:len(points)-1]
-                points[0].append(lines[i].PointAt(0))
-                points[0].append(lines[i].PointAt(1))
-            else:
-                points.append([])
-                if lines[i].PointAt(0) not in points[-2]:
-                    points[-1].append(lines[i].PointAt(0))
-                #if lines[i].PointAt(1) not in points[-2]:
-                    points[-1].append(lines[i].PointAt(1))                
+def scale_curve(curve, curve_length):
+    """reduce the extension of the input curve by a porcentage defined by the parameter curve_length"""
+    # curve input is actually a line
+    curve_length /= 100
+    len = curve.Length
+    p0 = curve.PointAt(0.5)
+    vec = curve.UnitTangent
+    p1 = p0 - ((vec * len * curve_length) / 2 )
+    p2 = p0 + ((vec * len * curve_length) / 2 )
+    new_curve = rg.Line(p1, p2)
+    return new_curve
+
+def variance(data):
+    """determine the variance between a list of axis"""
+    # Number of observations
+    n = len(data)
+    # Mean of the data
+    mean = sum(data) / n
+    # Square deviations
+    deviations = [(x - mean) ** 2 for x in data]
+    # Variance
+    variance = sum(deviations) / (n - 1)
+    return variance
 
 
-    polylines = []
-    for sublst in points:
-        if len(sublst)  > 0:
-            pol = rg.Polyline(sublst)
-            polylines.append(pol)#.ToNurbsCurve())
-    
-    breps = []
-    for pol in polylines:
-        offset_pol = offset_curve(pol, building_width)
-        brep = brep_from_loft(pol,offset_pol)
-        breps.append(brep)
+def sort_by_variance(lst):
+    """sorting out first the axis that has less variance"""
+    variance_lst = []
+    for sublst in lst:
+        variance_lst.append(variance(sublst))
+    # pair variance_lst and lst elements
+    zipped_lists = zip(variance_lst, lst)
+    # sort by first element of each pair
+    sorted_zipped_lists = sorted(zipped_lists, reverse=False)
+    sorted_list = [element for _, element in sorted_zipped_lists]
+    #get the first 10 elements
+    short_sorted_list = []
+    for i, sublst in enumerate(sorted_list):
+        if i < 10:
+            short_sorted_list.append(sublst)
+    return short_sorted_list
 
-    return polylines
+def create_floorplate(building_outline_pol):
+    """generate groundfloor floorplate brep"""
+    brep = rg.Extrusion.Create(building_outline_pol.ToNurbsCurve(), 0.3, True) # floorplate 30 cm thickness
+    return [brep]
+
+def create_colors():
+    """Assign color to apartment based on tag"""
+    colors = {}
+    color_slab = System.Drawing.Color.FromArgb(255, 171, 74)
+    color_column = System.Drawing.Color.FromArgb(255, 250, 74)
+    color_core = System.Drawing.Color.FromArgb(160, 160, 160)
+    colors = {'slab' : color_slab, 'column': color_column, 'core' : color_core}
+    return colors
+
+def extrusion_to_colored_mesh(ext, color):
+    """Convert extrusion object to colored monotone mesh with specific color"""
+    bfaces = ext.ToBrep(True).Faces
+    msh_lst = []
+    for i in range(bfaces.Count):
+        f = bfaces[i].DuplicateFace(False)
+        msh = rg.Mesh.CreateFromBrep(f, rg.MeshingParameters.Coarse)[0]
+        # msh = rc.Geometry.Mesh.CreateFromBrep(f, rc.Geometry.MeshingParameters.Default)[0]
+        msh_lst.append(msh)
+    meshes = rg.Mesh()
+    meshes.Append(msh_lst)
+    meshes.VertexColors.CreateMonotoneMesh(color)  # color
+    return meshes
+
+
+def visualize_apartments(breps, color):
+    """Visualize apartment extrusion objects with corresponding color"""
+    geo = []
+    for brep in breps:
+        colorMsh = extrusion_to_colored_mesh(brep, color)
+        geo.append(colorMsh)  # colored meshes
+        geo += brep.GetWireframe()  # wire-frame curves
+    return geo
+
+
+
+
 
 
 def flatten_lst(lst):
