@@ -5,6 +5,7 @@ src/__pycache__/
 # rhino backup model
 *.3dm.rhl
 *.3dmbak
+*.gh
 # document directories
 /rhino/
 # temp folder in src
