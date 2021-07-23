@@ -28,40 +28,77 @@ def offset_plot(plot_polylines, street_width):
         offset_plots = offset_curve(rs.coercecurve(plot_polylines), street_width)
     return offset_plots
 
+def coerce_curve(polycurve):
+    return rs.coercecurve(polycurve)
 
-def plot_type(polycurve, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, color):
+
+def houses_in_plot(polycurve, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor):
+    polycurve = coerce_curve(polycurve)
     curve = offset_curve(polycurve, block_min_dis_factor * building_width)
-    pol_in_plot = offset_curve(polycurve, building_width)
-    rgb = System.Drawing.Color.FromArgb(255, 171, 74)
+    offset_pol = offset_curve(polycurve, street_width)
     try:
         if curve:
-            breps = houses_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor)
-            if color:
-                return visualize_apartments(breps, rgb)
-            else:
-                return breps
+            return houses_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
         else:
-            breps =  block_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor)
-            if color:
-                return visualize_apartments(breps, rgb)
-            else:
-                return breps
+            return block_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     except:
         pass
+
+
+def houses_in_plots(offset_plots, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, color):
+    buildings = []
+    for plot in offset_plots:
+        buildings.append(houses_in_plot(plot, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor))
+    no_none_buildings = remove_nones(buildings)
+    no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, building_high)
+    if color:
+        rgb = System.Drawing.Color.FromArgb(255, 180, 110)
+        color_breps = visualize_apartments(no_clash_breps, rgb)
+        return color_breps
+    else:
+        return no_clash_breps
+
+
+def green_plots(polycurve, street_width, color):
+    patchs = []
+    non_none_pol = remove_nones(polycurve)
+    for guid in non_none_pol:
+        curve = rs.coercecurve(guid)
+        offset_pol = offset_curve(curve, street_width)
+        #patchs.append(offset_pol)
+        if offset_pol:
+            patch = rg.Extrusion.Create(offset_pol.ToNurbsCurve(), 0.2, True)
+            patchs.append(patch)
+    if color:
+        rgb = System.Drawing.Color.FromArgb(150, 240, 120)
+        return visualize_apartments(patchs, rgb)
+    else:
+        return patchs
 
 
 def radians_to_degrees(angle):
     return angle * 180 / math.pi
 
+
 def degrees_to_radians(angle):
     return angle * math.pi /180
 
+
+def remove_nones(buildings):
+    no_none_buildings = []
+    if isinstance(buildings, list):
+        if len(buildings) > 0:
+            for sublist in buildings:
+                if sublist != None:
+                    no_none_buildings.append(sublist)
+    return no_none_buildings
 
 def brep_from_loft(polycurve1, polycurve2):
     if polycurve1 and polycurve2:
         return rg.Brep.CreateFromLoft([polycurve1.ToNurbsCurve(), polycurve2.ToNurbsCurve()], rg.Point3d.Unset, rg.Point3d.Unset, rg.LoftType.Straight, False)[0]
     else:
         return []
+
 
 def house_pol(p0, tangent, normal, house_length, building_width):
     p1 = p0 + tangent * house_length
@@ -107,15 +144,46 @@ def remove_housing_clashes(houses, building_high):
                 non_clashing_houses.append(house_curve)
     return non_clashing_houses
 
+
+def remove_clashing_housing_in_quartier(house_pols, lines):
+    non_clashing_houses = []
+    if len(house_pols) > 2:
+        for house in house_pols[2:]:
+            clashing = False
+            for line in lines:
+                if house_pols[1].PointAt(0.5) != line.PointAt(0.5):
+                    if rg.Intersect.Intersection.CurveCurve(house, line.ToNurbsCurve()).Count > 0:
+                        clashing = True
+            if clashing == False:
+                non_clashing_houses.append(house)
+    return non_clashing_houses
+
+
+def remove_housing_clashes_dif_plots(houses, building_high):
+    non_clashing_houses = []
+    if len(houses) > 0:
+        for i, sublist in enumerate(houses):
+            if isinstance(sublist, list):
+                for house_curve in sublist:
+                    clashing = False
+                    for j, sublist2 in enumerate(houses):
+                        if i != j and i > j:
+                            for house_curve2 in sublist2:
+                                if rg.Intersect.Intersection.CurveCurve(house_curve, house_curve2, building_high * 0.4, 0.01).Count > 0:
+                                    clashing = True
+                    if clashing == False:
+                        non_clashing_houses.append(house_curve)
+            house_solids = extrude_curves(non_clashing_houses, -building_high)        
+    return house_solids
  
+
 def houses_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     lines = polycurve.GetSegments()
     houses = []
     for line in lines:
         houses.append(houses_in_line(line, building_width, block_length_factor, block_line_length_factor))
     non_clashing_houses = remove_housing_clashes(houses, building_high)
-    house_solids = extrude_curves(non_clashing_houses, -building_high)
-    return house_solids
+    return non_clashing_houses
     
 
 def block_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
@@ -126,10 +194,8 @@ def block_in_quartier(polycurve, building_width, building_high, block_length_fac
     ziped_list.reverse()
     line = ziped_list[0][1]
     house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor)
-    #non_clashing_houses = remove_housing_clashes(house_pols, building_high)
-    house_solids = extrude_curves(house_pols[2:], -building_high)
-    return house_solids
-
+    non_clashing_houses = remove_clashing_housing_in_quartier(house_pols, lines)
+    return non_clashing_houses
 
 
 def scale_curve(curve, curve_length_factor):

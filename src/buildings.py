@@ -19,10 +19,9 @@ class Buildings:
         # lists
         self.offset_plots = offset_plot(self.plot_polylines, self.street_width)
     
-    def plots_type(self):
-        building_types = []
-        for plot in self.offset_plots:
-            building_types.append(plot_type(plot, self.building_width, self.building_high, self.block_min_dis_factor, self.block_length_factor, self.block_line_length_factor, self.color))
-        return building_types
+    def plot_houses(self):
+        return houses_in_plots(self.plot_polylines, self.street_width, self.building_width, self.building_high, self.block_min_dis_factor, self.block_length_factor, self.block_line_length_factor, self.color)
 
 
+    def plots(self):
+        return green_plots(self.plot_polylines, self.street_width, self.color)
