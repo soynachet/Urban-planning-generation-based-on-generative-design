@@ -52,13 +52,14 @@ def houses_in_plots(offset_plots, street_width, building_width, building_high, b
         buildings.append(houses_in_plot(plot, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor))
     no_none_buildings = remove_nones(buildings)
     no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, building_high)
-    opt_values = []# plot_opt_lst(offset_plots, no_clash_breps, street_width)
+    opt_values = plot_opt_lst(offset_plots, no_clash_breps, street_width)
+    average_values_lst = average_list(opt_values)
     if color:
         rgb = System.Drawing.Color.FromArgb(rgbs[0]+50,rgbs[1]+50, rgbs[2]+50)
         color_breps = visualize_apartments(no_clash_breps, rgb)
-        return color_breps, opt_values
+        return color_breps, average_values_lst
     else:
-        return no_clash_breps, opt_values
+        return no_clash_breps, average_values_lst
 
 
 def green_plots(polycurve, street_width, rgbs, color):
@@ -80,30 +81,11 @@ def green_plots(polycurve, street_width, rgbs, color):
 
 def plot_opt_lst(offset_plots, no_clash_breps, street_width):
 
-    """area = 0
-    outline_len = 0
-    longest_outline = 0
-    vol = 0
-    av_vol_centroid_dis = 0"""
-
     offset_pol = [offset_curve(coerce_curve(plot), street_width) for plot in offset_plots]
     brep_points = [rg.VolumeMassProperties.Compute(brep).Centroid for brep in no_clash_breps]
-    relationships = ghcomp.PointInCurve(brep_points, offset_pol)[0]
-    plot_values = []
-    for plot in offset_pol:
-        if plot:
-            areaMass = rg.AreaMassProperties.Compute(offset_pol)
-            area = areaMass.Area
-            outline_len = ghcomp.Length(offset_pol)
-            longest_outline = ghcomp.SegmentLengths(offset_pol)[2]
-            #centroid = areaMass.Centroid
-        else:
-            area = 0
-            outline_len = 0
-            longest_outline = 0
-
-        plot_values.append(area)
-
+    relationships = []
+    for pol in offset_pol:
+        relationships.append(ghcomp.PointInCurve(brep_points, pol)[0])
 
     areas = []
     surf_perimeter = []
@@ -112,25 +94,24 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
     
     for plot in offset_pol:
         if plot:
-            areaMass = rg.AreaMassProperties.Compute(offset_pol)
+            areaMass = rg.AreaMassProperties.Compute(plot.ToNurbsCurve())
             areas.append(areaMass.Area)
-            surf_perimeter.append(ghcomp.Length(offset_pol))
-            surf_longest_segment.append(ghcomp.SegmentLengths(offset_pol)[2])
+            surf_perimeter.append(ghcomp.Length(offset_pol)[0])
+            surf_longest_segment.append(ghcomp.SegmentLengths(offset_pol)[2][0])
             centroids.append(areaMass.Centroid)
     
     plot_geo_lst = []
     plot_only_geo_list = []
-    for s, p, l, c in zip(areas, surf_perimeter, surf_longest_segment, centroids):
-        plot_geo_lst.append([s, p, l, c])
-        plot_only_geo_list.append([s])        
+    for a, p, l, c in zip(areas, surf_perimeter, surf_longest_segment, centroids):
+        plot_geo_lst.append([a, p, l, c])
+        plot_only_geo_list.append([a])
 
     for i in range(0, len(relationships)):
-        brep = no_clash_breps[i]
         for j in range(0, len(relationships[i])):
+            brep = no_clash_breps[j]
             if relationships[i][j] == 2:
-                plot_geo_lst[j].append(brep)
-                plot_only_geo_list[j].append(brep)
-
+                plot_geo_lst[i].append(brep)
+                plot_only_geo_list[i].append(brep)
 
     plot_info_lst = []
     for sublst in plot_geo_lst:
@@ -139,42 +120,49 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
         longest_outline = 0
         vol = 0
         av_vol_centroid_dis = 0
-        #try:
-        if len(sublst) == 4:
-            area = sublst[0]
-            outline_len = sublst[1]
-            longest_outline = sublst[2]
-        if len(sublst) > 4:
-            area = sublst[0]
-            outline_len = sublst[1]
-            longest_outline = sublst[2]
-            cen = rs.coerce3dpoint(sublst[3])
-            cen_2p = rg.Point2d(cen.X, cen.Y)
-            for brep in sublst[4:]:
-                brep = rs.coercebrep(brep)
-                volume_prop =  rg.VolumeMassProperties.Compute(brep)
-                volumen = volume_prop.Volume
-                centroid = volume_prop.Centroid
-                centroid_2p = rg.Point2d(centroid.X, centroid.Y)
-                if volumen:
-                    vol += volumen
-                if centroid:
-                    av_vol_centroid_dis += cen_2p.DistanceTo(centroid_2p)
-            av_vol_centroid_dis /= (len(sublst)-4)
-    #    except:
-    #        pass
+        try:
+            if len(sublst) == 4:
+                area = sublst[0]
+                outline_len = sublst[1]
+                longest_outline = sublst[2]
+            if len(sublst) > 4:
+                area = sublst[0]
+                outline_len = sublst[1]
+                longest_outline = sublst[2]
+                cen = rs.coerce3dpoint(sublst[3])
+                cen_2p = rg.Point2d(cen.X, cen.Y)
+                for brep in sublst[4:]:
+                    brep = rs.coercebrep(brep)
+                    volume_prop =  rg.VolumeMassProperties.Compute(brep)
+                    volumen = volume_prop.Volume
+                    centroid = volume_prop.Centroid
+                    centroid_2p = rg.Point2d(centroid.X, centroid.Y)
+                    if volumen:
+                        vol += volumen
+                    if centroid:
+                        av_vol_centroid_dis += cen_2p.DistanceTo(centroid_2p)
+                av_vol_centroid_dis /= (len(sublst)-4)
+        except:
+           pass
         plot_info_lst.append([area, outline_len, longest_outline, vol, av_vol_centroid_dis])
-
-    geometries = []
+    
+    #geometries = []
     data_lst = []
     for i, geo in enumerate(plot_only_geo_list):
         if len(geo) > 1:
-            geometries.append(geo)
             data_lst.append(plot_info_lst[i])
 
+    return data_lst
 
-    return plot_values
 
+def average_value(lst):
+    return sum(lst) / len(lst)
+    
+
+def average_list(lst):
+    transpose = zip(*lst)
+    transpose_average = [average_value(sublst) for sublst in transpose]
+    return transpose_average
 
 
 def radians_to_degrees(angle):
@@ -193,6 +181,7 @@ def remove_nones(buildings):
                 if sublist != None:
                     no_none_buildings.append(sublist)
     return no_none_buildings
+
 
 def brep_from_loft(polycurve1, polycurve2):
     if polycurve1 and polycurve2:
