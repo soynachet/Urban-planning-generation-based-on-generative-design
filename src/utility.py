@@ -104,14 +104,14 @@ def perimeter_len(pol):
     return per, lenghts[0]
 
 
-
 def plot_opt_lst(offset_plots, no_clash_breps, street_width):
     #try:
     offset_pol = [offset_curve(coerce_curve(plot), street_width) for plot in offset_plots]
     brep_points = [rg.VolumeMassProperties.Compute(brep).Centroid for brep in no_clash_breps]
     relationships = []
     for pol in offset_pol:
-        relationships.append(point_in_curve(brep_points, pol))
+        if pol:
+            relationships.append(point_in_curve(brep_points, pol))
 
     areas = []
     surf_perimeter = []
@@ -121,11 +121,12 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
     for plot in offset_pol:
         if plot:
             areaMass = rg.AreaMassProperties.Compute(plot.ToNurbsCurve())
-            areas.append(areaMass.Area)
-            per_len = perimeter_len(plot)
-            surf_perimeter.append(per_len[0])
-            surf_longest_segment.append(per_len[1])
-            centroids.append(areaMass.Centroid)
+            if areaMass:
+                areas.append(areaMass.Area)
+                per_len = perimeter_len(plot)
+                surf_perimeter.append(per_len[0])
+                surf_longest_segment.append(per_len[1])
+                centroids.append(areaMass.Centroid)
     
     plot_geo_lst = []
     plot_only_geo_list = []
