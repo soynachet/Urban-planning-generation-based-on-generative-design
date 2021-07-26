@@ -17,7 +17,7 @@ def remap_values(zip_lst):
 def cal_opt_value(mapped_values, weights):
     value = 0.0
     for val, w in zip(mapped_values, weights):
-        value += abs(val[1] - val[0]) * w
+        value += abs(val[1] - val[0]) * abs(val[1] - val[0]) * w
     return value
 
 
