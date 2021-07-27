@@ -46,7 +46,10 @@ def cal_opt_value(mapped_values, weights):
     for sublst in mapped_values:
         if 1.0 not in sublst[4]:
             values_no_zeros.append(sublst)
-    opt_value =  value / len(values_no_zeros)
+    if len(values_no_zeros) > 0:
+        opt_value =  value / len(values_no_zeros)
+    else:
+        opt_value =  value 
     return opt_value
 
 
