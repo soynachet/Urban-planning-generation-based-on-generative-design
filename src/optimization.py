@@ -32,7 +32,7 @@ def remap_values(plot_info_cad, plot_info_param):
     return remap_values_end
 
 
-def cal_opt_value(mapped_values, weights):
+def cal_opt_value(mapped_values, weights, nr_plots):
     variance_lst = [[],[],[],[],[]]
     for sublst in mapped_values:
         for i, val in enumerate(sublst):
@@ -49,20 +49,25 @@ def cal_opt_value(mapped_values, weights):
     if len(values_no_zeros) > 0:
         opt_value =  value / len(values_no_zeros)
     else:
-        opt_value =  value 
-    return opt_value
+        opt_value =  value
+    nr_factor = nr_plots - ((len(mapped_values) + len(values_no_zeros)) / 2 ) + 1
+    if nr_factor == 1:
+        return opt_value
+    elif nr_factor > 1:
+        return opt_value + opt_value * (nr_factor * weights[-1])
 
 
 class Opt_class:
 
-    def __init__ (self, plot_info_cad, plot_info_param, cad_reduction, weights):
+    def __init__ (self, plot_info_cad, plot_info_param, cad_reduction, weights, nr_plots):
         self.plot_info_cad = plot_info_cad
         self.plot_info_param = plot_info_param
         self.cad_reduction = cad_reduction
         self.weights = weights
+        self.nr_plots = nr_plots
 
     def optimiza(self):
         plot_info_cad_reduzed = [plot_info * self.cad_reduction for plot_info in self.plot_info_cad]
         mapped_values = remap_values(plot_info_cad_reduzed, self.plot_info_param)
-        opt_value = cal_opt_value(mapped_values, self.weights)
+        opt_value = cal_opt_value(mapped_values, self.weights, self.nr_plots)
         return plot_info_cad_reduzed, opt_value
