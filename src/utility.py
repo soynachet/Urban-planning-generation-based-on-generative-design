@@ -37,10 +37,10 @@ def houses_in_plots(plot_polylines, street_width, building_width, building_high,
     for plot, pick in zip(plot_polylines, design_pick):
         buildings.append(houses_in_plot(plot, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, pick))
     no_none_buildings = remove_nones(buildings)
-    no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, building_high)
+    no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, building_high, building_width)
     opt_values = plot_opt_lst(plot_polylines, no_clash_breps, street_width)
-    average_values_lst = opt_values
-    average_values_lst = average_list(opt_values)
+    #average_values_lst = opt_values
+    #average_values_lst = average_list(opt_values)
     if color:
         rgb = System.Drawing.Color.FromArgb(rgbs[0]+50,rgbs[1]+50, rgbs[2]+50)
         color_breps = visualize_apartments(no_clash_breps, rgb)
@@ -56,9 +56,6 @@ def houses_in_plot(polycurve, street_width, building_width, building_high, block
     #try:
     if curve:
         return house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
-        #return block_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
-        #return block_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
-        #return block_in_quartier_fat(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     else:
         return house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     # except:
@@ -66,7 +63,6 @@ def houses_in_plot(polycurve, street_width, building_width, building_high, block
 
 
 def house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor):
-    #try:
     if pick == 0:
         return houses_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     if pick == 1:
@@ -75,8 +71,6 @@ def house_picker(pick, offset_pol, building_width, building_high, block_length_f
         return block_in_quartier_fat(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     if pick == 3:
         return block_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
-    # except:
-    #     return []
     
 
 def block_houses(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
@@ -85,10 +79,12 @@ def block_houses(polycurve, building_width, building_high, block_length_factor, 
         lengh = polycur.GetLength()
         blok_len = building_width * block_length_factor
         curve = offset_curve(polycur, building_width)
+        curve_check = offset_curve(polycur, 1.2 * building_width)
         if curve:
             nr_curve = curve.ToNurbsCurve()
             dis = 0
             curves = nr_curve.DivideByLength(blok_len, True)
+
             points = [nr_curve.PointAt(c) for c in curves]
             tan_lst = [nr_curve.TangentAt(c) for c in curves]
             normal_lst = [rg.Vector3d.CrossProduct(tan, rg.Vector3d(0,0,1)) for tan in tan_lst]
@@ -219,7 +215,29 @@ def remove_clashing_housing_in_quartier(house_pols, lines):
     return non_clashing_houses
 
 
-def remove_housing_clashes_dif_plots(houses, building_high):
+def define_high_houses(non_clashing_houses, building_high, building_width):
+    distances = []
+    for i, pol_1 in enumerate(non_clashing_houses):
+        line_distances = []
+        for j, pol_2 in enumerate(non_clashing_houses):
+            if i != j:
+                points = pol_1.ClosestPoints(pol_2)
+                dis = points[1].DistanceTo(points[2])
+                line_distances.append(dis)
+        line_distances.sort()
+        distances.append([pol_1, line_distances[0]])
+    pol_dis_lst = []
+    for sublst in distances:
+        if sublst[1] < 0.3 * building_width:
+            pol_dis_lst.append([sublst[0], building_high])
+        elif sublst[1] > 0.3 * building_width and sublst[1] < 0.8 * building_width:
+            pol_dis_lst.append([sublst[0], building_high + 3])
+        elif sublst[1] > 0.8 * building_width:
+            pol_dis_lst.append([sublst[0], building_high + 6])
+    return pol_dis_lst
+
+
+def remove_housing_clashes_dif_plots(houses, building_high, building_width):
     non_clashing_houses = []
     if len(houses) > 0:
         for i, sublist in enumerate(houses):
@@ -233,7 +251,8 @@ def remove_housing_clashes_dif_plots(houses, building_high):
                                     clashing = True
                     if clashing == False:
                         non_clashing_houses.append(house_curve)
-    house_solids = extrude_curves(non_clashing_houses, -building_high)        
+    pol_dis_lst = define_high_houses(non_clashing_houses, building_high, building_width)
+    house_solids = extrude_curves(pol_dis_lst)        
     return house_solids
  
 
@@ -323,6 +342,7 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
         longest_outline = 0
         vol = 0
         av_vol_centroid_dis = 0
+        av_vol = 0
         if len(sublst) == 4:
             area = sublst[0]
             outline_len = sublst[1]
@@ -344,11 +364,10 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
                 if centroid:
                     av_vol_centroid_dis += cen_2p.DistanceTo(centroid_2p)
             av_vol_centroid_dis /= (len(sublst)-4)
-
-        plot_info_lst.append([area, outline_len, longest_outline, vol, av_vol_centroid_dis])
+            av_vol = vol / (len(sublst)-4)
+        plot_info_lst.append([area, outline_len, longest_outline, vol, av_vol_centroid_dis, av_vol])
     
     return plot_info_lst
-
 
 def average_value(lst):
     return sum(lst) / len(lst)
@@ -404,10 +423,10 @@ def scale_curve(curve, curve_length_factor):
     return new_curve
 
 
-def extrude_curves(houses, building_high):
+def extrude_curves(pol_dis_lst):
     breps = []
-    for house_curve in houses:
-        breps.append(rg.Extrusion.Create(house_curve, building_high, True))
+    for sublst in pol_dis_lst:
+        breps.append(rg.Extrusion.Create(sublst[0], -sublst[1], True))
     return breps
 
 
