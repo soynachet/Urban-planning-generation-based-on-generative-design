@@ -225,7 +225,10 @@ def define_high_houses(non_clashing_houses, building_high, building_width):
                 dis = points[1].DistanceTo(points[2])
                 line_distances.append(dis)
         line_distances.sort()
-        distances.append([pol_1, line_distances[0]])
+        if len(line_distances) > 0:
+            distances.append([pol_1, line_distances[0]])
+        else:
+            distances.append([pol_1, 0.0])
     pol_dis_lst = []
     for sublst in distances:
         if sublst[1] < 0.3 * building_width:
