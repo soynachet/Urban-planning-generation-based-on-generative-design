@@ -310,7 +310,7 @@ def perimeter_len(pol):
 def plot_opt_lst(offset_plots, no_clash_breps, street_width):
     #try:
     offset_pol = [offset_curve(coerce_curve(plot), street_width) for plot in offset_plots]
-    brep_points = [rg.VolumeMassProperties.Compute(brep).Centroid for brep in no_clash_breps]
+    brep_points = [rg.VolumeMassProperties.Compute(brep).Centroid for brep in no_clash_breps if brep]
     relationships = []
     for pol in offset_pol:
         if pol:
@@ -451,7 +451,10 @@ def create_colors():
 
 def extrusion_to_colored_mesh(ext, color):
     """Convert extrusion object to colored monotone mesh with specific color"""
-    bfaces = ext.ToBrep(True).Faces
+    if not isinstance(ext, rg.Brep):
+        bfaces = ext.ToBrep(True).Faces
+    else:
+        bfaces = ext.Faces
     msh_lst = []
     for i in range(bfaces.Count):
         f = bfaces[i].DuplicateFace(False)
