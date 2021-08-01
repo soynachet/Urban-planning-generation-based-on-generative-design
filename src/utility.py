@@ -34,11 +34,21 @@ def coerce_curve(polycurve):
 
 def houses_in_plots(plot_polylines, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
     buildings = []
+    solids = []
     for plot, pick in zip(plot_polylines, design_pick):
-        buildings.append(houses_in_plot(plot, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, pick))
+        houses = houses_in_plot(plot, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, pick)
+        if len(houses) > 0:
+            if isinstance(houses[0], rg.NurbsCurve):
+                buildings.append(houses)
+            else:
+                solids.append(houses)
     no_none_buildings = remove_nones(buildings)
     no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, building_high, building_width)
+    for sublst in solids:
+        for solid in sublst:
+            no_clash_breps.extend(solid)
     opt_values = plot_opt_lst(plot_polylines, no_clash_breps, street_width)
+    #opt_values = []
     #average_values_lst = opt_values
     #average_values_lst = average_list(opt_values)
     if color:
@@ -53,13 +63,10 @@ def houses_in_plot(polycurve, street_width, building_width, building_high, block
     polycurve = coerce_curve(polycurve)
     curve = offset_curve(polycurve, block_min_dis_factor * building_width)
     offset_pol = offset_curve(polycurve, street_width)
-    #try:
     if curve:
         return house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     else:
         return house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
-    # except:
-    #     pass
 
 
 def house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor):
@@ -69,36 +76,33 @@ def house_picker(pick, offset_pol, building_width, building_high, block_length_f
         return block_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     if pick == 2:
         return block_in_quartier_fat(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
-    if pick == 3:
+    if pick == 3 and offset_curve(offset_pol, 1.5 * building_width):
         return block_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
-    
+    else:
+        return houses_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
 
 def block_houses(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     if polycurve:
         polycur = polycurve.ToNurbsCurve()
-        lengh = polycur.GetLength()
         blok_len = building_width * block_length_factor
         curve = offset_curve(polycur, building_width)
-        curve_check = offset_curve(polycur, 1.2 * building_width)
-        if curve:
+        curve_check = offset_curve(polycur, 1.5 * building_width)
+        if curve_check:
             nr_curve = curve.ToNurbsCurve()
-            dis = 0
+            unset = rg.Point3d.Unset
+            brep = rg.Brep.CreateFromLoft([polycur,nr_curve], unset, unset, rg.LoftType.Straight, False)[0]
             curves = nr_curve.DivideByLength(blok_len, True)
 
             points = [nr_curve.PointAt(c) for c in curves]
             tan_lst = [nr_curve.TangentAt(c) for c in curves]
             normal_lst = [rg.Vector3d.CrossProduct(tan, rg.Vector3d(0,0,1)) for tan in tan_lst]
-            pols = []
-            segments = polycurve.GetSegments()
-            corner_pts = [c.PointAt(0) for c in segments]
-            for i in range(0, len(points) - 1):
-                p0 = points[i]
-                p1 = p0 - normal_lst[i] * building_width
-                p2 = points[i+1] - normal_lst[i+1] * building_width
-                p3 = points[i+1]
-                pol = rg.Polyline([p0,p1,p2,p3,p0])          
-                pols.append(pol.ToNurbsCurve())
-            return pols
+            spilt_curves = [rg.Line(p1, p1 - n * building_width).ToNurbsCurve() for p1, n in zip(points, normal_lst)]
+            edges = brep.Faces[0].Split(spilt_curves, 2).Faces
+            faces = [edges.Item[i] for i in range(0, edges.Count)]
+            ex_curve = rg.Line(rg.Point3d(0,0,0), rg.Point3d(0,0,building_high)).ToNurbsCurve()
+            face_ext = [face.CreateExtrusion(ex_curve, True) for face in faces]
+            solids = [rg.Brep.CreateSolid([ext], 1) for ext in face_ext]
+            return solids
 
 # new_pols = []
 # for pol in pols:
@@ -152,7 +156,7 @@ def block_in_quartier_fat(polycurve, building_width, building_high, block_length
         ziped_list.sort()
         ziped_list.reverse()
         line = ziped_list[0][1]
-        building_width *= 3
+        building_width *= 2
         block_length_factor /= 2
         house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor, "even")
         non_clashing_houses = remove_clashing_housing_in_quartier(house_pols, lines)
@@ -190,7 +194,7 @@ def remove_housing_clashes(houses, building_high):
             for j, sublist2 in enumerate(houses):
                 if i != j and i > j:
                     for house_curve2 in sublist2[2:]:
-                        if rg.Intersect.Intersection.CurveCurve(house_curve, house_curve2, building_high * 0.4, 0.01).Count > 0:
+                        if rg.Intersect.Intersection.CurveCurve(house_curve, house_curve2, building_high * 0.9, 0.01).Count > 0:
                             clashing = True
             for k, sublist3 in enumerate(houses):
                 if i != k:

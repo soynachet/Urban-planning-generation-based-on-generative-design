@@ -14,7 +14,7 @@ class Buildings:
         ):
 
         self.plot_polylines = plot_polylines
-        self.street_width = building_high * 0.4
+        self.street_width = building_high * 0.5
         self.building_width = building_width
         self.building_high = building_high
         self.block_min_dis_factor = block_min_dis_factor
