@@ -35,13 +35,14 @@ def coerce_curve(polycurve):
 def houses_in_plots(plot_polylines, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
     buildings = []
     solids = []
-    for plot, pick in zip(plot_polylines, design_pick):
-        houses = houses_in_plot(plot, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, pick)
-        if len(houses) > 0:
-            if isinstance(houses[0], rg.NurbsCurve):
-                buildings.append(houses)
-            else:
-                solids.append(houses)
+    for plot, pick, b_len_factor in zip(plot_polylines, design_pick, block_length_factor):
+        houses = houses_in_plot(plot, street_width, building_width, building_high, block_min_dis_factor, b_len_factor, block_line_length_factor, pick)
+        if isinstance(houses, list):
+            if len(houses) > 0:
+                if isinstance(houses[0], rg.NurbsCurve):
+                    buildings.append(houses)
+                else:
+                    solids.append(houses)
     no_none_buildings = remove_nones(buildings)
     no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, building_high, building_width)
     for sublst in solids:
@@ -84,7 +85,7 @@ def house_picker(pick, offset_pol, building_width, building_high, block_length_f
 def block_houses(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     if polycurve:
         polycur = polycurve.ToNurbsCurve()
-        blok_len = building_width * block_length_factor
+        blok_len = building_width * block_length_factor *1.5
         curve = offset_curve(polycur, building_width)
         curve_check = offset_curve(polycur, 1.5 * building_width)
         if curve_check:
@@ -156,7 +157,7 @@ def block_in_quartier_fat(polycurve, building_width, building_high, block_length
         ziped_list.sort()
         ziped_list.reverse()
         line = ziped_list[0][1]
-        building_width *= 2
+        building_width *= 2.5
         block_length_factor /= 2
         house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor, "even")
         non_clashing_houses = remove_clashing_housing_in_quartier(house_pols, lines)
@@ -169,6 +170,7 @@ def houses_in_line(line, building_width, block_length_factor, block_line_length_
     tangent = scaled_line.UnitTangent
     normal = rg.Vector3d.CrossProduct(tangent, rg.Vector3d(0,0,1))
     p0 = scaled_line.PointAt(0)
+    block_length_factor *= 1.2
     houses_nr = int(math.floor(length / (building_width * block_length_factor)))
     house_pols = [length, line]
     if houses_nr > 0:
@@ -468,7 +470,7 @@ def visualize_apartments(breps, color):
     for brep in breps:
         colorMsh = extrusion_to_colored_mesh(brep, color)
         geo.append(colorMsh)  # colored meshes
-        geo += brep.GetWireframe()  # wire-frame curves
+        #geo += brep.GetWireframe()  # wire-frame curves
     return geo
 
 
