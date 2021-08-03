@@ -33,7 +33,7 @@ def remap_values(plot_info_cad, plot_info_param):
 
 
 def cal_opt_value(mapped_values, weights, nr_plots):
-    variance_lst = [[],[],[],[],[], []]
+    variance_lst = [[],[],[],[],[],[],[]]
     for sublst in mapped_values:
         for i, val in enumerate(sublst):
             variance_lst[i].append(val[0])

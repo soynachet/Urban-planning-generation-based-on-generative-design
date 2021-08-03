@@ -333,8 +333,8 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
     
     plot_geo_lst = []
     plot_only_geo_list = []
-    for a, p, l, c in zip(areas, surf_perimeter, surf_longest_segment, centroids):
-        plot_geo_lst.append([a, p, l, c])
+    for a, p, l, c, o in zip(areas, surf_perimeter, surf_longest_segment, centroids, offset_plots):
+        plot_geo_lst.append([a, p, l, c, o])
         plot_only_geo_list.append([a])
 
     for i in range(0, len(relationships)):
@@ -351,18 +351,19 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
         longest_outline = 0
         vol = 0
         av_vol_centroid_dis = 0
+        av_vol_centroid_outline_dis = 0
         av_vol = 0
-        if len(sublst) == 4:
+        if len(sublst) == 5:
             area = sublst[0]
             outline_len = sublst[1]
             longest_outline = sublst[2]
-        if len(sublst) > 4:
+        if len(sublst) > 5:
             area = sublst[0]
             outline_len = sublst[1]
             longest_outline = sublst[2]
             cen = rs.coerce3dpoint(sublst[3])
             cen_2p = rg.Point2d(cen.X, cen.Y)
-            for brep in sublst[4:]:
+            for brep in sublst[5:]:
                 brep = rs.coercebrep(brep)
                 volume_prop =  rg.VolumeMassProperties.Compute(brep)
                 volumen = volume_prop.Volume
@@ -372,9 +373,14 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
                     vol += volumen
                 if centroid:
                     av_vol_centroid_dis += cen_2p.DistanceTo(centroid_2p)
-            av_vol_centroid_dis /= (len(sublst)-4)
-            av_vol = vol / (len(sublst)-4)
-        plot_info_lst.append([area, outline_len, longest_outline, vol, av_vol_centroid_dis, av_vol])
+                    out_curve = rs.coercecurve(sublst[4])
+                    dis_param = out_curve.ClosestPoint(centroid, 0)
+                    p1 = out_curve.PointAt(dis_param[1])
+                    av_vol_centroid_outline_dis += p1.DistanceTo(centroid)
+            av_vol_centroid_outline_dis /= (len(sublst)-5)        
+            av_vol_centroid_dis /= (len(sublst)-5)
+            av_vol = vol / (len(sublst)-5)
+        plot_info_lst.append([area, outline_len, longest_outline, vol, av_vol_centroid_dis, av_vol_centroid_outline_dis, av_vol])
     
     return plot_info_lst
 

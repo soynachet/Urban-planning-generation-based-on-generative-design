@@ -1,8 +1,6 @@
 import utility
 utility = reload(utility)
 from utility import *
-import Rhino
-import Rhino.Geometry as rg
 
 class Buildings:
 
