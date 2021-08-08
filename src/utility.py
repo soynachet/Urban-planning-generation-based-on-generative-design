@@ -378,13 +378,17 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
                         p1 = out_curve.PointAt(dis_param[1])
                         av_vol_centroid_outline_dis += p1.DistanceTo(centroid)
                 av_vol_centroid_outline_dis /= (len(sublst)-5)        
+                av_vol_centroid_outline_dis += 5
                 av_vol_centroid_dis /= (len(sublst)-5)
                 av_vol = vol / (len(sublst)-5)
             plot_info_lst.append([area, outline_len, longest_outline, vol, av_vol_centroid_dis, av_vol_centroid_outline_dis, av_vol])
     
         return plot_info_lst
     except:
-        return ([0,0,0,0,0,0,0])
+        plot_info_lst = []
+        for a in offset_plots:
+            plot_info_lst.append([1,1,1,1,1,1,1])
+        return plot_info_lst
 
 def average_value(lst):
     return sum(lst) / len(lst)
