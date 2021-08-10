@@ -12,7 +12,6 @@ class Buildings:
         ):
 
         self.plot_polylines = plot_polylines
-        self.street_width = building_high * 0.5
         self.building_width = building_width
         self.building_high = building_high
         self.block_min_dis_factor = block_min_dis_factor
@@ -23,11 +22,11 @@ class Buildings:
         self.color = color 
 
         # lists
-        self.offset_plots = offset_plot(self.plot_polylines, self.street_width)
+        self.offset_plots = offset_plot(self.plot_polylines, self.building_high)
     
     def plot_houses(self):
         return houses_in_plots(
-            self.plot_polylines, self.street_width, 
+            self.plot_polylines, 
             self.building_width, self.building_high, 
             self.block_min_dis_factor, self.block_length_factor, 
             self.block_line_length_factor,  self.design_pick, self.rgbs, self.color
@@ -35,5 +34,5 @@ class Buildings:
 
 
     def plots(self):
-        return green_plots(self.plot_polylines, self.street_width, self.rgbs, self.color)
+        return green_plots(self.plot_polylines, self.building_high, self.rgbs, self.color)
 
