@@ -157,8 +157,8 @@ def block_in_quartier_fat(polycurve, building_width, building_high, block_length
         ziped_list.sort()
         ziped_list.reverse()
         line = ziped_list[0][1]
-        building_width *= 2.5
-        block_length_factor /= 2
+        building_width *= 3
+        block_length_factor /= 3
         house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor, "even")
         non_clashing_houses = remove_clashing_housing_in_quartier(house_pols, lines)
         return non_clashing_houses
