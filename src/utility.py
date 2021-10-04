@@ -77,6 +77,8 @@ def house_picker(pick, offset_pol, building_width, building_high, block_length_f
         return block_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     if pick == 3:
         return block_in_quartier_fat(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
+    if pick == 4:
+        return family_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)        
     if pick == 0 and offset_curve(offset_pol, 1.5 * building_width):
         return block_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     else:
@@ -123,6 +125,17 @@ def block_houses(polycurve, building_width, building_high, block_length_factor, 
 #         new_pols.append(pol.ToNurbsCurve())
 
 
+def family_houses(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
+    if polycurve:
+        lines = polycurve.GetSegments()
+        houses = []
+        block_length_factor *= 0.44
+        building_high *= 0.5
+        for line in lines:
+            houses.append(houses_in_line(line, building_width, block_length_factor, block_line_length_factor,"even"))
+        non_clashing_houses = remove_housing_clashes(houses, building_high)
+        return non_clashing_houses
+
 
 def houses_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     if polycurve:
@@ -164,7 +177,7 @@ def block_in_quartier_fat(polycurve, building_width, building_high, block_length
         return non_clashing_houses
 
 
-def houses_in_line(line, building_width, block_length_factor, block_line_length_factor, even = "alls"):
+def houses_in_line(line, building_width, block_length_factor, block_line_length_factor, even = "all"):
     scaled_line = scale_curve(line, block_line_length_factor)
     length = scaled_line.Length
     tangent = scaled_line.UnitTangent
@@ -178,7 +191,7 @@ def houses_in_line(line, building_width, block_length_factor, block_line_length_
         for i in range(0, houses_nr):
             house = house_pol(p0, tangent, normal, house_length, building_width)
             p0 += tangent * house_length
-            if even == "alls":
+            if even == "all":
                 house_pols.append(house)
             elif even == "even":
                 if i % 2 == 0:
@@ -237,12 +250,12 @@ def define_high_houses(non_clashing_houses, building_high, building_width):
             distances.append([pol_1, 0.0])
     pol_dis_lst = []
     for sublst in distances:
-        if sublst[1] < 0.3 * building_width:
-            pol_dis_lst.append([sublst[0], building_high])
-        elif sublst[1] > 0.3 * building_width and sublst[1] < 0.8 * building_width:
-            pol_dis_lst.append([sublst[0], building_high + 3])
-        elif sublst[1] > 0.8 * building_width:
-            pol_dis_lst.append([sublst[0], building_high + 6])
+        if sublst[1] < 0.1 * building_width:
+            pol_dis_lst.append([sublst[0], building_high + 2])
+        if sublst[1] >= 0.1 * building_width and sublst[1] < 1 * building_width:
+            pol_dis_lst.append([sublst[0], building_high - 2])
+        elif sublst[1] >= 1 * building_width:
+            pol_dis_lst.append([sublst[0], building_high + 4])
     return pol_dis_lst
 
 
