@@ -39,9 +39,12 @@ def cal_opt_value(mapped_values, weights, nr_plots):
             variance_lst[i].append(val[0])
     variance_factor = [variance(data) * w for data, w in zip(variance_lst, weights)]
     value = 0.0
+    values_lst = []
     for sublst in mapped_values:        
         for val, w, f in zip(sublst, weights, variance_factor):
-            value += (abs(val[1] - val[0]) ** 3) * (w +  f)
+            cal_value = (abs(val[1] - val[0]) ** 3) * (w +  f)
+            value += cal_value
+            values_lst.append(cal_value)
     values_no_zeros = []
     for sublst in mapped_values:
         if 1.0 not in sublst[4]:
@@ -54,7 +57,26 @@ def cal_opt_value(mapped_values, weights, nr_plots):
     if nr_factor == 1:
         return opt_value
     elif nr_factor > 1:
-        return opt_value + opt_value * (nr_factor * weights[-1])
+        return opt_value + opt_value * nr_factor * weights[-1], values_lst
+
+
+def transpose(matrix):
+    rows = len(matrix)
+    columns = len(matrix[0])
+
+    matrix_T = []
+    for j in range(columns):
+        row = []
+        for i in range(rows):
+           row.append(matrix[i][j])
+        matrix_T.append(row)
+
+    return matrix_T
+
+def output_map_values(mapped_values):
+    values = [[tup[1] for tup in plot_values] for plot_values in mapped_values]
+    return transpose(values)
+
 
 
 class Opt_class:
@@ -70,4 +92,4 @@ class Opt_class:
         plot_info_cad_reduzed = [plot_info * self.cad_reduction for plot_info in self.plot_info_cad]
         mapped_values = remap_values(plot_info_cad_reduzed, self.plot_info_param)
         opt_value = cal_opt_value(mapped_values, self.weights, self.nr_plots)
-        return plot_info_cad_reduzed, opt_value
+        return plot_info_cad_reduzed, opt_value#[0], opt_value[1]
