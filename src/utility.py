@@ -578,4 +578,5 @@ def flatten_lst(lst):
 def plot_parks_reduce(lst):
     test = []
     for park in plot_parks:
-        test.append(park.Length)
+        test.append("a")#park.Length)
+    return test
