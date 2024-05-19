@@ -66,14 +66,12 @@ def cal_opt_value(mapped_values, weights, nr_plots):
 def transpose(matrix):
     rows = len(matrix)
     columns = len(matrix[0])
-
     matrix_T = []
     for j in range(columns):
         row = []
         for i in range(rows):
            row.append(matrix[i][j])
         matrix_T.append(row)
-
     return matrix_T
 
 def output_map_values(mapped_values):

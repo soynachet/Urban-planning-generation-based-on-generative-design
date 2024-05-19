@@ -25,13 +25,12 @@ class Buildings:
         self.offset_plots = offset_plot(self.plot_polylines, self.building_high)
     
     def plot_houses(self):
-        return houses_in_plots(
+        return (
             self.plot_polylines, 
             self.building_width, self.building_high, 
             self.block_min_dis_factor, self.block_length_factor, 
             self.block_line_length_factor,  self.design_pick, self.rgbs, self.color
             )
-
 
     def plots(self):
         return green_plots(self.plot_polylines, self.building_high, self.rgbs, self.color)

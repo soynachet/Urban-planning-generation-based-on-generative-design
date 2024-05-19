@@ -32,7 +32,7 @@ def coerce_curve(polycurve):
     return rs.coercecurve(polycurve)
 
 
-def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
+def (plot_polylines, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
     buildings = []
     solids = []
     for plot, pick, b_len_factor, b_line_length_factor, b_width, b_high in zip(plot_polylines, design_pick, block_length_factor, block_line_length_factor, building_width, building_high):
@@ -76,9 +76,18 @@ def house_picker(pick, offset_pol, building_width, building_high, block_length_f
     if pick == 2:
         return block_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     if pick == 3:
-        return block_in_quartier_fat(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
+        #return block_in_quartier_fat(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
+        return family_houses(offset_pol, building_width*2.5, building_high, block_length_factor/3, block_line_length_factor)
     if pick == 4:
-        return family_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)        
+        return family_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
+    if pick == 5:
+        return several_parallel_blocks(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor, 0)
+    if pick == 6:
+        return several_parallel_blocks(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor, 1)
+    if pick == 7:
+        return several_parallel_blocks(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor, 2)
+    if pick == 8:
+        return garden_plot()
     if pick == 0 and offset_curve(offset_pol, 1.5 * building_width):
         return block_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     else:
@@ -107,35 +116,20 @@ def block_houses(polycurve, building_width, building_high, block_length_factor, 
             solids = [rg.Brep.CreateSolid([ext], 1) for ext in face_ext]
             return solids
 
-# new_pols = []
-# for pol in pols:
-#     corner = False
-#     centroid =  rg.AreaMassProperties.Compute(pol.ToNurbsCurve()).Centroid
-#     p_cor = None
-#     for point in corner_pts:
-#         if centroid.DistanceTo(point) > (0.5 * building_width) and centroid.DistanceTo(point) < (2 * building_width):
-#             corner = True
-#             p_cor = point
-        
-#     if corner:
-#         pts = [segment.PointAt(0) for segment in pol.GetSegments()]
-#         pol_corner = rg.Polyline([pts[0], pts[1], p_cor, pts[2], pts[3], pts[0]])
-#         new_pols.append(pol_corner.ToNurbsCurve())
-#     else:
-#         new_pols.append(pol.ToNurbsCurve())
-
 
 def family_houses(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     if polycurve:
-        lines = polycurve.GetSegments()
-        houses = []
-        block_length_factor *= 0.44
-        building_high *= 0.5
-        for line in lines:
-            houses.append(houses_in_line(line, building_width, block_length_factor, block_line_length_factor,"even"))
-        non_clashing_houses = remove_housing_clashes(houses, building_high)
-        return non_clashing_houses
-
+        # offset plot polycurve
+        polycurve = offset_curve(polycurve, 3 * block_length_factor)
+        if polycurve:
+            lines = polycurve.GetSegments()
+            houses = []
+            block_length_factor *= 1.1
+            building_high *= 0.6
+            for line in lines:
+                houses.append(houses_in_line(line, building_width, block_length_factor, block_line_length_factor,"even"))
+            non_clashing_houses = remove_housing_clashes(houses, building_high)
+            return non_clashing_houses
 
 def houses_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     if polycurve:
@@ -145,7 +139,6 @@ def houses_in_quartier(polycurve, building_width, building_high, block_length_fa
             houses.append(houses_in_line(line, building_width, block_length_factor, block_line_length_factor))
         non_clashing_houses = remove_housing_clashes(houses, building_high)
         return non_clashing_houses
-    
 
 def block_in_quartier(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     if polycurve:
@@ -154,13 +147,12 @@ def block_in_quartier(polycurve, building_width, building_high, block_length_fac
         ziped_list = zip(lines_length, lines)
         ziped_list.sort()
         ziped_list.reverse()
-        line = ziped_list[0][1]
+        line = ziped_list[1][1]
         block_length_factor *= 1.5
         building_width *= 1.5
         house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor)
         non_clashing_houses = remove_clashing_housing_in_quartier(house_pols, lines)
         return non_clashing_houses
-
 
 def block_in_quartier_fat(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
     if polycurve:
@@ -174,6 +166,50 @@ def block_in_quartier_fat(polycurve, building_width, building_high, block_length
         block_length_factor /= 3
         house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor, "even")
         non_clashing_houses = remove_clashing_housing_in_quartier(house_pols, lines)
+        return non_clashing_houses
+
+
+def garden_plot():
+    return None
+
+def several_parallel_blocks(polycurve, building_width, building_high, block_length_factor, block_line_length_factor, polycurve_side):
+    if polycurve:
+        lines = polycurve.GetSegments()
+        lines_length = [line.Length for line in lines]
+        ziped_list = zip(lines_length, lines)
+        ziped_list.sort()
+        ziped_list.reverse()
+        line = ziped_list[polycurve_side][1]
+        p0 = line.PointAt(0)
+        p1 = line.PointAt(1)
+        tan = line.UnitTangent
+        normal = rg.Vector3d.CrossProduct(rg.Vector3d(0,0,1), tan)
+        distance_buildings_1 = 14 *\
+            block_line_length_factor * building_high / 10 + building_width
+        distance_buildings_2 = 14 * \
+            (1+block_line_length_factor) * building_high / 10
+        line_2a = rg.Line(p0 + normal * distance_buildings_1, p1 + normal * distance_buildings_1)
+        line_2b = rg.Line(p0 - normal * distance_buildings_1,
+                          p1 - normal * distance_buildings_1)
+        line_3a = rg.Line(line_2a.PointAt(0) + normal * distance_buildings_2, 
+                          line_2a.PointAt(1) + normal * distance_buildings_2)
+        line_3b = rg.Line(line_2b.PointAt(0) - normal * distance_buildings_2,
+                          line_2b.PointAt(1) - normal * distance_buildings_2)
+        line_4a = rg.Line(line_3a.PointAt(0) + normal * distance_buildings_1,
+                          line_3a.PointAt(1) + normal * distance_buildings_1)
+        line_4b = rg.Line(line_3b.PointAt(0) - normal * distance_buildings_1,
+                          line_3b.PointAt(1) - normal * distance_buildings_1)
+        line_5a = rg.Line(line_4a.PointAt(0) + normal * distance_buildings_2,
+                          line_4a.PointAt(1) + normal * distance_buildings_2)
+        line_5b = rg.Line(line_4b.PointAt(0) - normal * distance_buildings_2,
+                          line_4b.PointAt(1) - normal * distance_buildings_2)
+        house_lines = [line, line_2b, line_2a, line_3a, line_3b, line_4a, line_4b, line_5a, line_5b]
+        houses = []
+        for lin in house_lines:
+            house_pols = houses_in_line(lin, building_width, block_length_factor, block_line_length_factor)
+            houses.append(house_pols)
+        non_clashing_houses = remove_clashing_housing_in_quartier_2(
+            houses, lines, polycurve)
         return non_clashing_houses
 
 
@@ -222,16 +258,43 @@ def remove_housing_clashes(houses, building_high):
 
 def remove_clashing_housing_in_quartier(house_pols, lines):
     non_clashing_houses = []
+    house_pols = flatten_lst(house_pols)
     if len(house_pols) > 2:
         for house in house_pols[2:]:
-            clashing = False
-            for line in lines:
-                if house_pols[1].PointAt(0.5) != line.PointAt(0.5):
-                    if rg.Intersect.Intersection.CurveCurve(house, line.ToNurbsCurve(), 0, 0).Count > 0:
-                        clashing = True
-            if clashing == False:
-                non_clashing_houses.append(house)
+            if isinstance(house, rg.Curve):
+                clashing = False
+                for line in lines:
+                    if house_pols[1].PointAt(0.5) != line.PointAt(0.5):
+                        if rg.Intersect.Intersection.CurveCurve(house, line.ToNurbsCurve(), 0, 0).Count > 0:
+                            clashing = True
+                if clashing == False:
+                    non_clashing_houses.append(house)
     return non_clashing_houses
+
+
+def remove_clashing_housing_in_quartier_2(house_pols, lines, polycurve):
+    non_clashing_houses = []
+    house_pols = flatten_lst(house_pols)
+    if len(house_pols) > 2:
+        for house in house_pols[2:]:
+            if isinstance(house, rg.Curve):
+                clashing = False
+                for line in lines:
+                    if house_pols[1].PointAt(0.5) != line.PointAt(0.5):
+                        if rg.Intersect.Intersection.CurveCurve(house, line.ToNurbsCurve(), 0, 0).Count > 0:
+                            clashing = True
+                if clashing == False:
+                    # determine if pol is inside or oustide
+                    bbx_pt = house.GetBoundingBox(rg.Plane(rg.Point3d(0,0,0), rg.Vector3d(0,0,1))).Center
+                    point_far_house = bbx_pt + rg.Vector3d(1, 0, 0) * 1000
+                    in_out_line = rg.Line(bbx_pt, point_far_house)
+                    inter_count = rg.Intersect.Intersection.CurveCurve(
+                        polycurve.ToNurbsCurve(), in_out_line.ToNurbsCurve(), 0, 0).Count
+                    if inter_count % 2 != 0:
+                        non_clashing_houses.append(house)
+    return non_clashing_houses
+
+
 
 
 def define_high_houses(non_clashing_houses, building_high, building_width):
@@ -512,4 +575,7 @@ def flatten_lst(lst):
             flat_list.append(sublist)
     return flat_list
 
-
+def plot_parks_reduce(lst):
+    test = []
+    for park in plot_parks:
+        test.append(park.Length)
