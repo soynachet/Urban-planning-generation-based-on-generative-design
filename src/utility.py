@@ -32,7 +32,7 @@ def coerce_curve(polycurve):
     return rs.coercecurve(polycurve)
 
 
-def (plot_polylines, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
+def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
     buildings = []
     solids = []
     for plot, pick, b_len_factor, b_line_length_factor, b_width, b_high in zip(plot_polylines, design_pick, block_length_factor, block_line_length_factor, building_width, building_high):
@@ -50,8 +50,8 @@ def (plot_polylines, building_width, building_high, block_min_dis_factor, block_
             no_clash_breps.extend(solid)
     opt_values = plot_opt_lst(plot_polylines, no_clash_breps, min(building_high) * 0.5)
     #opt_values = []
-    #average_values_lst = opt_values
-    #average_values_lst = average_list(opt_values)
+    #means_lst = opt_values
+    #means_lst = average_list(opt_values)
     if color:
         rgb = System.Drawing.Color.FromArgb(rgbs[0]+50,rgbs[1]+50, rgbs[2]+50)
         color_breps = visualize_apartments(no_clash_breps, rgb)
@@ -466,13 +466,13 @@ def plot_opt_lst(offset_plots, no_clash_breps, street_width):
             plot_info_lst.append([1,1,1,1,1,1,1])
         return plot_info_lst
 
-def average_value(lst):
+def mean(lst):
     return sum(lst) / len(lst)
     
 
 def average_list(lst):
     transpose = zip(*lst)
-    transpose_average = [average_value(sublst) for sublst in transpose]
+    transpose_average = [mean(sublst) for sublst in transpose]
     return transpose_average
 
 
@@ -575,8 +575,307 @@ def flatten_lst(lst):
             flat_list.append(sublist)
     return flat_list
 
-def plot_parks_reduce(lst):
-    test = []
-    for park in plot_parks:
-        test.append("a")#park.Length)
-    return test
+
+def park_pol_clean(park_pol, park_min_lenght):
+    bigger_parks = []
+    for park in park_pol:
+        if park.Length > park_min_lenght:
+            bigger_parks.append(park)
+    return bigger_parks
+
+def plot_pol_clean(plot_bulidings, ptml, pbma):
+    pol_big = []
+    for pol in plot_bulidings:
+        length = pol.Length
+        if length > ptml:
+            area_mass = rg.AreaMassProperties.Compute(pol.ToNurbsCurve(), 0.001)
+            if area_mass:
+                area = area_mass.Area
+                if area > pbma:
+                    pol_big.append(pol)
+    #centroids = [pol.CenterPoint() for pol in pol_big]
+    return pol_big
+
+def building_brep_clean(building_breps, building_brep_min_vol):
+    buildings = []
+    for building in building_breps:
+        vol = building.GetVolume()
+        if vol > building_brep_min_vol:
+            #centroid = building.GetBoundingBox(rg.Plane(rg.Point3d(0, 0, 0), rg.Vector3d(0, 0, 1))).Center
+            buildings.append(building)
+            #centroids.append(centroid)
+    #centroids = [rg.Point3d(c.X, c.Y, 0) for c in centroids]
+    return buildings
+
+
+def compute_center_point(geo):
+    if isinstance(geo, rg.Polyline):
+        bbx_pt= geo.CenterPoint()
+    elif isinstance(geo, rg.Brep):
+        bbx_pt = geo.GetBoundingBox(
+            rg.Plane(rg.Point3d(0, 0, 0), rg.Vector3d(0, 0, 1))).Center
+        bbx_pt = rg.Point3d(bbx_pt.X, bbx_pt.Y, 0)
+    return bbx_pt
+
+def is_inside_point_distance_check(crv, point_insider, diagonal):
+    is_inside = False
+    closest_point = crv.ClosestPoint(point_insider)
+    #print closest_point, diagonal
+    if closest_point[0] == True:
+        curv_pt = crv.PointAt(closest_point[1])
+        distance = curv_pt.DistanceTo(point_insider)
+        if distance < diagonal:
+            is_inside = True
+    return is_inside
+
+def is_inside_bool(container_crv, center_point):
+    is_inside = False
+    point_far = center_point + rg.Vector3d(1, 0, 0) * 1000
+    intersect_line = rg.Line(center_point, point_far)
+    inter_count = rg.Intersect.Intersection.CurveCurve(
+        container_crv, intersect_line.ToNurbsCurve(), 0, 0).Count
+    #container_crv = container.ToNurbsCurve()
+    if inter_count % 2 != 0:
+        is_inside = True
+        # if container_crv.Contains(bbx_pt):
+        #     is_inside = True
+    return is_inside
+
+
+def create_container_dict(park_pol, district_pol, plot_pol, building_breps):
+    # Building withing plots dictionary
+    plot_pol_bbx_diagonals = [rg.BoundingBox(
+        plot).Diagonal.Length for plot in plot_pol]
+    building_breps_center_points = [
+        compute_center_point(brep) for brep in building_breps]
+    plot_crv = [plot.ToNurbsCurve() for plot in plot_pol]
+
+    plot_building_dict = {}
+    for plot, crv, diagonal in zip(plot_pol, plot_crv, plot_pol_bbx_diagonals):
+        plot_building_dict[plot] = []
+        for building, center_point in zip(building_breps, building_breps_center_points):
+            inside_bool_distances = is_inside_point_distance_check(
+                crv, center_point, diagonal)
+            if inside_bool_distances == True:
+                inside_bool = is_inside_bool(crv, center_point)
+                if inside_bool == True:
+                    plot_building_dict[plot].append(building)
+                    #building_breps_02.remove(building)
+    plot_building_dict_clean = {i: j for i,
+                                j in plot_building_dict.items() if j != []}
+
+    # Plots within districts dictionary
+    district_pol_bbx_diagonals = [rg.BoundingBox(
+        district).Diagonal.Length for district in district_pol]
+    district_crv = [district.ToNurbsCurve() for district in district_pol]
+    plot_pol_clean = [
+        plot for plot in plot_pol if plot in plot_building_dict_clean]
+    plot_pol_center_points = [compute_center_point(
+        plot) for plot in plot_pol_clean]
+
+    district_plot_dict = {}
+    for district, crv, diagonal in zip(district_pol, district_crv, district_pol_bbx_diagonals):
+        district_plot_dict[district] = []
+        for plot, center_point in zip(plot_pol_clean, plot_pol_center_points):
+            inside_bool_distances = is_inside_point_distance_check(
+                crv, center_point, diagonal)
+            if inside_bool_distances == True:
+                inside_bool = is_inside_bool(crv, center_point)
+                if inside_bool == True:
+                    district_plot_dict[district].append(plot)
+                    # plot_pol_02.remove(plot)
+    district_plot_dict_clean = {i: j for i,
+                                j in district_plot_dict.items() if j != []}
+                                
+    return district_plot_dict_clean, plot_building_dict_clean
+
+
+def geometry_flatten_lists(container_dictionaries):
+    """ for testing outputs visualization"""
+    dic_1 = container_dictionaries[0]
+    dic_2 = container_dictionaries[1]
+    geo_flatten_lst = []
+    for k, v_lst in dic_1.items():
+        k_list = [k]
+        for v in v_lst:
+            k_list.append(v)
+            breps = dic_2[v]
+            for brep in breps:
+                k_list.append(brep)
+        geo_flatten_lst.append(k_list)
+    return geo_flatten_lst
+
+
+def geometry_lists(container_dictionaries, parks):
+    dic_1 = container_dictionaries[0]
+    dic_2 = container_dictionaries[1]
+    # dic_1_extended = {}
+    # for k, v_lst in dic_1.items():
+    #     dic_1_extended[k] = {}
+    #     for v in v_lst:
+    #         dic_1_extended[k][v] = dic_2[v]
+    return dic_1, dic_2, parks
+
+
+def clustering_values_compute(container_dictionaries):
+    # geometry dictionaries
+    district_plot_dict = container_dictionaries[0]
+    plot_building_dict = container_dictionaries[1]
+    plots_pol = plot_building_dict.keys()
+
+    ### clustering values ###
+    # pa = plot_area
+    # pp = plot_perimeter
+    # prba = plot_rotated_bbx_minimal_area
+    # papb = plot_proportion_plot_area_/_plot_rotated_minimal_bbx_area
+    # psvb = plot_sum_volume_building
+    # pram = plot_roof_areas_mean
+    # prhm = plot_roof_heights_mean
+    # prav = plot_roof_areas_variance
+    # prhv = plot_roof_heights_variance
+    # pbn = plot_building_number
+    # ccm = plot_dis_building_centroid_to_plot_centroid_mean
+    # com = plot_dis_building_centroid_to_plot_outline_mean
+    # ccv = plot_dis_building_centroid_to_plot_centroid_variance
+    # cov = plot_dis_building_centroid_to_plot_outline_variance
+
+    # fullfill first three lists
+    clustering_dic = {}
+    for plot in plots_pol:
+        clustering_dic[plot] = {"pa": None, "pp": None, "prba": None, "papb": None, "psvb": None,
+                                "pram": None, "prhm": None, "prav": None, "prhv": None, 
+                                "pbn": None, "ccm": None, "com": None, "ccv": None, "cov": None}
+        pa = rg.AreaMassProperties.Compute(plot.ToNurbsCurve(), 0.001).Area
+        pp = plot.Length
+        clustering_dic[plot]["pa"] = rg.AreaMassProperties.Compute(
+            plot.ToNurbsCurve(), 0.001).Area
+        clustering_dic[plot]["pp"] = plot.Length
+        clustering_dic[plot]["prba"] = min_rotated_bbx_area(plot)
+        clustering_dic[plot]["papb"] = min_rotated_bbx_area(plot)
+
+        breps_in_plot = plot_building_dict[plot]
+        vol_sum = 0
+        height_lst = []
+        roof_area_lst = []
+        centroid_centroid_lst = []
+        centroid_outline_lst = []
+        brep_centroids = []
+        for brep in breps_in_plot:
+            vol = brep.GetVolume()
+            vol_sum += vol
+            height, roof_area, brep_centroid = brep_face_values(brep)
+            height_lst.append(height)
+            roof_area_lst.append(roof_area)
+            brep_centroids.append(brep_centroid)
+        clustering_dic[plot]["psvb"] = vol_sum
+        clustering_dic[plot]["pbn"] = len(breps_in_plot)
+        clustering_dic[plot]["pram"] = mean(roof_area_lst)
+        clustering_dic[plot]["prhm"]= mean(height_lst)
+        clustering_dic[plot]["prav"] = variance(roof_area_lst)
+        clustering_dic[plot]["prhv"]= variance(height_lst)
+
+        ccm, com, ccv, cov = brep_centroid_values(
+            breps_in_plot, plot, brep_centroids)
+        clustering_dic[plot]["ccm"] = ccm
+        clustering_dic[plot]["com"] = com
+        clustering_dic[plot]["ccv"] = ccv
+        clustering_dic[plot]["cov"] = cov
+
+    return clustering_dic
+
+
+def normalized_clustering_dict(container_dictionaries):
+    clustering_values = clustering_values_compute(container_dictionaries)
+    to_normalize_dic = {}
+    for k, v in clustering_values.items():
+        for vk, vv in v.items():
+            if vk not in to_normalize_dic:
+                to_normalize_dic[vk] = []
+            else:
+                to_normalize_dic[vk].append(vv)
+    n_dic = {}
+    for k, v in to_normalize_dic.items():
+        n_dic[k] = {"base": min(v), "range": max(v) - min(v)}
+    # to normalize apply: (x-base)/range
+    normalized_clustering_values = {}
+    for k, v in clustering_values.items():
+        normalized_clustering_values[k] = {}
+        for vk, vv in v.items():
+            normalized_clustering_values[k][vk] = (vv - n_dic[vk]["base"]) / n_dic[vk]["range"]
+    return normalized_clustering_values
+
+
+def min_rotated_bbx_area(plot):
+    bbx_lst = []
+    rotation_angles = [0, 10, 20, 30, 40, 50, 60, 70, 80]
+    rotation_angles_rad = [math.radians(angle) for angle in rotation_angles]
+    area_min_list = []
+    bbx = rg.BoundingBox(plot)
+    area_lst = []
+    for angle in rotation_angles_rad:
+        # brep_02 = brep
+        plot_02 = plot.ToNurbsCurve()
+        plot_rotate = plot_02.Rotate(
+            angle, rg.Vector3d(0, 0, 1), bbx.Center)
+        bbx_02 = plot_02.GetBoundingBox(True)
+        area = bbx_02.Area
+        area_lst.append(area)
+    return min(area_lst)
+
+def brep_face_values(brep):
+    heights = []
+    roof_area = None
+    centroid_to_centroid = None
+    centroid_to_outline = None
+    prop_lst = []
+    brep_centroids = []
+    for f in brep.Faces:
+        prop = rg.AreaMassProperties.Compute(f)
+        centroid = prop.Centroid
+        height = centroid.Z
+        heights.append(height)
+        prop_lst.append(prop)
+        brep_centroids.append(centroid)
+    max_height = max(heights)
+    brep_centroid = None
+    for prop in prop_lst:
+        if prop.Centroid.Z == max_height:
+            roof_area = prop.Area
+            brep_centroid = prop.Centroid
+    return max_height, roof_area, brep_centroid
+
+def brep_centroid_values(breps, plot, brep_centroids):
+    plot_centroid = plot.CenterPoint()
+    brep_centroids_z0 = [rg.Point3d(pt.X, pt.Y, 0) for pt in brep_centroids]
+    plot_centroid_z0 = rg.Point3d(plot_centroid.X, plot_centroid.Y, 0)
+    plot_crv = plot.ToNurbsCurve()
+    centroid_to_centroid_lst = []
+    centroid_to_outline_lst = []
+    for bc in brep_centroids_z0:
+        dis_cc = bc.DistanceTo(plot_centroid_z0)
+        centroid_to_centroid_lst.append(dis_cc)
+
+        closest_point = plot_crv.ClosestPoint(bc)
+        curv_pt = plot_crv.PointAt(closest_point[1])
+        dis_co = curv_pt.DistanceTo(bc)
+        centroid_to_outline_lst.append(dis_co)
+    ccm = mean(centroid_to_centroid_lst)
+    com = mean(centroid_to_outline_lst)
+    ccv = variance(centroid_to_centroid_lst)
+    cov = variance(centroid_to_outline_lst)
+    return ccm, com, ccv, cov
+
+def variance(data):
+  n = len(data)
+  mean = sum(data) / n
+  deviations = [(x - mean) ** 2 for x in data]
+  variance = sum(deviations) / n
+  return variance
+
+
+# # normalize values
+# def normalize(lst):
+#     base = min(lst)
+#     range = max(lst) - base
+#     normalized = [(x-base)/range for x in lst]
+#     return normalized
