@@ -35,6 +35,9 @@ def coerce_curve(polycurve):
 def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
     buildings = []
     solids = []
+    patchs = []
+    houses_in_plot_dic = {}
+    plot_patches_dic = {}
     for plot, pick, b_len_factor, b_line_length_factor, b_width, b_high in zip(plot_polylines, design_pick, block_length_factor, block_line_length_factor, building_width, building_high):
         houses = houses_in_plot(plot, b_high * 0.5, b_width, b_high, block_min_dis_factor, b_len_factor, b_line_length_factor, pick)
         if isinstance(houses, list):
@@ -43,21 +46,54 @@ def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis
                     buildings.append(houses)
                 else:
                     solids.append(houses)
-    no_none_buildings = remove_nones(buildings)
-    no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, min(building_high), min(building_width))
-    for sublst in solids:
-        for solid in sublst:
-            no_clash_breps.extend(solid)
-    opt_values = plot_opt_lst(plot_polylines, no_clash_breps, min(building_high) * 0.5)
+        # patches
+        curve = rs.coercecurve(plot)
+        offset_pol = offset_curve(curve, b_high * 0.5)
+        patch = rg.Extrusion.Create(offset_pol.ToNurbsCurve(), 0.2, True)
+        patchs.append(patch)
+        # Fullfill dictionary
+        if offset_pol != None and houses != []:
+            #print flatten_lst(houses)
+            houses_in_plot_dic[offset_pol] = houses
+        plot_patches_dic[plot] = patch
+
+    # remove clashing buildings
+    # no_none_buildings = remove_nones(buildings)
+    # no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, min(building_high), min(building_width))
+    # for sublst in solids:
+    #     for solid in sublst:
+    #         no_clash_breps.extend(solid)
+    #opt_values = plot_opt_lst(plot_polylines, no_clash_breps, min(building_high) * 0.5)
     #opt_values = []
     #means_lst = opt_values
     #means_lst = average_list(opt_values)
-    if color:
-        rgb = System.Drawing.Color.FromArgb(rgbs[0]+50,rgbs[1]+50, rgbs[2]+50)
-        color_breps = visualize_apartments(no_clash_breps, rgb)
-        return color_breps, opt_values
-    else:
-        return no_clash_breps, opt_values
+    # if color:
+    #     rgb = System.Drawing.Color.FromArgb(rgbs[0]+50,rgbs[1]+50, rgbs[2]+50)
+    #     color_breps = visualize_apartments(no_clash_breps, rgb)
+    #     return color_breps, opt_values
+    # else:
+    #     return no_clash_breps, opt_values
+
+    # patchs = []
+    # non_none_pol = remove_nones(polycurve)
+    # for guid, b_high in zip(non_none_pol, building_high):
+    #     curve = rs.coercecurve(guid)
+    #     offset_pol = offset_curve(curve, b_high * 0.5)
+    #     # patchs.append(offset_pol)
+    #     if offset_pol:
+    #         patch = rg.Extrusion.Create(offset_pol.ToNurbsCurve(), 0.2, True)
+    #         patchs.append(patch)
+    
+    # patchs = []
+    # for guid in plot_polylines:
+    #     curve = rs.coercecurve(guid)
+    #     offset_pol = offset_curve(curve, b_high * 0.5)
+    #     patch = rg.Extrusion.Create(curve.ToNurbsCurve(), 0.2, True)
+    #     patchs.append(patch)
+
+    return plot_patches_dic, houses_in_plot_dic
+
+
 
 
 def houses_in_plot(polycurve, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, pick):
@@ -717,34 +753,45 @@ def geometry_lists(container_dictionaries, parks):
     return dic_1, dic_2, parks
 
 
-def clustering_values_compute(container_dictionaries):
+def clustering_values_geometry_compute(container_dictionaries):
     # geometry dictionaries
-    district_plot_dict = container_dictionaries[0]
     plot_building_dict = container_dictionaries[1]
     plots_pol = plot_building_dict.keys()
 
     ### clustering values ###
+
+    ### parameters to define the plot
     # pa = plot_area
     # pp = plot_perimeter
     # prba = plot_rotated_bbx_minimal_area
     # papb = plot_proportion_plot_area_/_plot_rotated_minimal_bbx_area
+
+    ### parameters to define the relation between buildings and plot
     # psvb = plot_sum_volume_building
+    # sapa = (sum_volume_building_/_3.5)_/_plot_area. 3.5 is average floor height
+    # ccm = plot_dis_building_outline_to_plot_centroid_mean
+    # com = plot_dis_building_outline_to_plot_outline_mean
+    # ccv = plot_dis_building_outline_to_plot_centroid_variance
+    # cov = plot_dis_building_outline_to_plot_outline_variance
+
+    ### parameters to define buildings
+    # pvbm = plot_volume_building_mean
+    # pvbv = plot_volume_building_variance
+    # pbn = plot_roof_number
     # pram = plot_roof_areas_mean
     # prhm = plot_roof_heights_mean
-    # prav = plot_roof_areas_variance
-    # prhv = plot_roof_heights_variance
-    # pbn = plot_building_number
-    # ccm = plot_dis_building_centroid_to_plot_centroid_mean
-    # com = plot_dis_building_centroid_to_plot_outline_mean
-    # ccv = plot_dis_building_centroid_to_plot_centroid_variance
-    # cov = plot_dis_building_centroid_to_plot_outline_variance
+
+    # prav = plot_roof_areas_variance - out
+    # prhv = plot_roof_heights_variance - out
 
     # fullfill first three lists
+    patch_building_dict = {}
     clustering_dic = {}
     for plot in plots_pol:
-        clustering_dic[plot] = {"pa": None, "pp": None, "prba": None, "papb": None, "psvb": None,
-                                "pram": None, "prhm": None, "prav": None, "prhv": None, 
-                                "pbn": None, "ccm": None, "com": None, "ccv": None, "cov": None}
+        clustering_dic[plot] = {"pa": None, "pp": None, "prba": None, "papb": None, "psvb": None, 
+                                "sapa": None,"pram": None, "prhm": None,"pbn": None, "ccm": None, 
+                                "com": None, "ccv": None, "cov": None,"pvbm": None,  "pvbv": None}
+
         pa = rg.AreaMassProperties.Compute(plot.ToNurbsCurve(), 0.001).Area
         pp = plot.Length
         clustering_dic[plot]["pa"] = rg.AreaMassProperties.Compute(
@@ -752,7 +799,6 @@ def clustering_values_compute(container_dictionaries):
         clustering_dic[plot]["pp"] = plot.Length
         clustering_dic[plot]["prba"] = min_rotated_bbx_area(plot)
         clustering_dic[plot]["papb"] = min_rotated_bbx_area(plot)
-
         breps_in_plot = plot_building_dict[plot]
         vol_sum = 0
         height_lst = []
@@ -760,19 +806,28 @@ def clustering_values_compute(container_dictionaries):
         centroid_centroid_lst = []
         centroid_outline_lst = []
         brep_centroids = []
+        vol_lst = []
         for brep in breps_in_plot:
-            vol = brep.GetVolume()
+            if isinstance(brep, rg.Brep):
+                b = brep
+            else:
+                b = brep[0]
+            vol = b.GetVolume()
             vol_sum += vol
-            height, roof_area, brep_centroid = brep_face_values(brep)
+            height, roof_area, brep_centroid = brep_face_values(b)
             height_lst.append(height)
             roof_area_lst.append(roof_area)
             brep_centroids.append(brep_centroid)
+            vol_lst.append(vol)
         clustering_dic[plot]["psvb"] = vol_sum
+        clustering_dic[plot]["sapa"] = (vol_sum / 3.5) / pa
         clustering_dic[plot]["pbn"] = len(breps_in_plot)
         clustering_dic[plot]["pram"] = mean(roof_area_lst)
         clustering_dic[plot]["prhm"]= mean(height_lst)
-        clustering_dic[plot]["prav"] = variance(roof_area_lst)
-        clustering_dic[plot]["prhv"]= variance(height_lst)
+        # clustering_dic[plot]["prav"] = variance(roof_area_lst)
+        # clustering_dic[plot]["prhv"]= variance(height_lst)
+        clustering_dic[plot]["pvbm"] = mean(vol_lst)
+        clustering_dic[plot]["pvbv"]= variance(vol_lst)
 
         ccm, com, ccv, cov = brep_centroid_values(
             breps_in_plot, plot, brep_centroids)
@@ -781,11 +836,15 @@ def clustering_values_compute(container_dictionaries):
         clustering_dic[plot]["ccv"] = ccv
         clustering_dic[plot]["cov"] = cov
 
-    return clustering_dic
+        patch = rg.Extrusion.Create(plot.ToNurbsCurve(), 0.2, True)
+        patch_building_dict[patch] = breps_in_plot
+
+    return clustering_dic, patch_building_dict
 
 
 def normalized_clustering_dict(container_dictionaries):
-    clustering_values = clustering_values_compute(container_dictionaries)
+    clustering_values, clustering_geo_dic = clustering_values_geometry_compute(
+        container_dictionaries)
     to_normalize_dic = {}
     for k, v in clustering_values.items():
         for vk, vv in v.items():
@@ -802,7 +861,7 @@ def normalized_clustering_dict(container_dictionaries):
         normalized_clustering_values[k] = {}
         for vk, vv in v.items():
             normalized_clustering_values[k][vk] = (vv - n_dic[vk]["base"]) / n_dic[vk]["range"]
-    return normalized_clustering_values
+    return normalized_clustering_values, clustering_values
 
 
 def min_rotated_bbx_area(plot):
@@ -879,3 +938,8 @@ def variance(data):
 #     range = max(lst) - base
 #     normalized = [(x-base)/range for x in lst]
 #     return normalized
+
+
+def compute_optimization_value(cpn, cr, opt_keys,opt_values, geo_keys, 
+                                geo_values, weights):
+    pass

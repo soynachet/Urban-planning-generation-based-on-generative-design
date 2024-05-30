@@ -24,14 +24,18 @@ class Buildings:
         # lists
         self.offset_plots = offset_plot(self.plot_polylines, self.building_high)
     
+    @property
     def plot_houses(self):
-        return (
+        return houses_in_plots(
             self.plot_polylines, 
             self.building_width, self.building_high, 
             self.block_min_dis_factor, self.block_length_factor, 
             self.block_line_length_factor,  self.design_pick, self.rgbs, self.color
             )
 
-    def plots(self):
-        return green_plots(self.plot_polylines, self.building_high, self.rgbs, self.color)
+    def clustering_values_geometry(self):
+        return clustering_values_geometry_compute(self.plot_houses)
+    
+    # def plots(self):
+    #     return green_plots(self.plot_polylines, self.building_high, self.rgbs, self.color)
 
