@@ -33,29 +33,35 @@ def coerce_curve(polycurve):
 
 
 def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
-    buildings = []
-    solids = []
     patchs = []
     houses_in_plot_dic = {}
     plot_patches_dic = {}
+    plot_green_dic = {}
     for plot, pick, b_len_factor, b_line_length_factor, b_width, b_high in zip(plot_polylines, design_pick, block_length_factor, block_line_length_factor, building_width, building_high):
         houses = houses_in_plot(plot, b_high * 0.5, b_width, b_high, block_min_dis_factor, b_len_factor, b_line_length_factor, pick)
+        solids = []
+        buildings = []
         if isinstance(houses, list):
             if len(houses) > 0:
                 if isinstance(houses[0], rg.NurbsCurve):
                     buildings.append(houses)
                 else:
-                    solids.append(houses)
+                    solids.extend(houses)
         # patches
         curve = rs.coercecurve(plot)
         offset_pol = offset_curve(curve, b_high * 0.5)
-        patch = rg.Extrusion.Create(offset_pol.ToNurbsCurve(), 0.2, True)
-        patchs.append(patch)
-        # Fullfill dictionary
-        if offset_pol != None and houses != []:
-            #print flatten_lst(houses)
-            houses_in_plot_dic[offset_pol] = houses
-        plot_patches_dic[plot] = patch
+        if offset_pol:
+            patch = rg.Extrusion.Create(offset_pol.ToNurbsCurve(), 0.2, True)
+            patchs.append(patch)
+            # Fullfill dictionary
+            if offset_pol != None and solids != []:
+                #print flatten_lst(houses)
+                houses_in_plot_dic[offset_pol] = solids
+                if pick == 7:
+                    plot_green_dic[offset_pol] = "green"
+                else:
+                    plot_green_dic[offset_pol] = None
+            plot_patches_dic[plot] = patch
 
     # remove clashing buildings
     # no_none_buildings = remove_nones(buildings)
@@ -90,20 +96,14 @@ def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis
     #     offset_pol = offset_curve(curve, b_high * 0.5)
     #     patch = rg.Extrusion.Create(curve.ToNurbsCurve(), 0.2, True)
     #     patchs.append(patch)
-
-    return plot_patches_dic, houses_in_plot_dic
-
-
+    return plot_patches_dic, houses_in_plot_dic, plot_green_dic
 
 
 def houses_in_plot(polycurve, street_width, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, pick):
     polycurve = coerce_curve(polycurve)
     curve = offset_curve(polycurve, block_min_dis_factor * building_width)
     offset_pol = offset_curve(polycurve, street_width)
-    if curve:
-        return house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
-    else:
-        return house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
+    return house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
 
 
 def house_picker(pick, offset_pol, building_width, building_high, block_length_factor, block_line_length_factor):
@@ -121,9 +121,10 @@ def house_picker(pick, offset_pol, building_width, building_high, block_length_f
     if pick == 6:
         return several_parallel_blocks(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor, 1)
     if pick == 7:
-        return several_parallel_blocks(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor, 2)
-    if pick == 8:
-        return garden_plot()
+        return garden_plot(offset_pol)
+        #return several_parallel_blocks(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor, 2)
+    # if pick == 8:
+    #     return garden_plot(offset_pol)
     if pick == 0 and offset_curve(offset_pol, 1.5 * building_width):
         return block_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     else:
@@ -187,7 +188,8 @@ def block_in_quartier(polycurve, building_width, building_high, block_length_fac
         block_length_factor *= 1.5
         building_width *= 1.5
         house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor)
-        non_clashing_houses = remove_clashing_housing_in_quartier(house_pols, lines)
+        non_clashing_houses = remove_clashing_housing_in_quartier(
+            house_pols, lines, building_high)
         return non_clashing_houses
 
 def block_in_quartier_fat(polycurve, building_width, building_high, block_length_factor, block_line_length_factor):
@@ -201,12 +203,14 @@ def block_in_quartier_fat(polycurve, building_width, building_high, block_length
         building_width *= 3
         block_length_factor /= 3
         house_pols = houses_in_line(line, building_width, block_length_factor, block_line_length_factor, "even")
-        non_clashing_houses = remove_clashing_housing_in_quartier(house_pols, lines)
+        non_clashing_houses = remove_clashing_housing_in_quartier(
+            house_pols, lines, building_high)
         return non_clashing_houses
 
 
-def garden_plot():
-    return None
+def garden_plot(offset_pol):
+    if offset_pol:
+        return [rg.Extrusion.Create(offset_pol.ToNurbsCurve(), 0.1, True).ToBrep()]
 
 def several_parallel_blocks(polycurve, building_width, building_high, block_length_factor, block_line_length_factor, polycurve_side):
     if polycurve:
@@ -220,9 +224,9 @@ def several_parallel_blocks(polycurve, building_width, building_high, block_leng
         p1 = line.PointAt(1)
         tan = line.UnitTangent
         normal = rg.Vector3d.CrossProduct(rg.Vector3d(0,0,1), tan)
-        distance_buildings_1 = 14 *\
+        distance_buildings_1 = 21 *\
             block_line_length_factor * building_high / 10 + building_width
-        distance_buildings_2 = 14 * \
+        distance_buildings_2 = 25 * \
             (1+block_line_length_factor) * building_high / 10
         line_2a = rg.Line(p0 + normal * distance_buildings_1, p1 + normal * distance_buildings_1)
         line_2b = rg.Line(p0 - normal * distance_buildings_1,
@@ -245,7 +249,7 @@ def several_parallel_blocks(polycurve, building_width, building_high, block_leng
             house_pols = houses_in_line(lin, building_width, block_length_factor, block_line_length_factor)
             houses.append(house_pols)
         non_clashing_houses = remove_clashing_housing_in_quartier_2(
-            houses, lines, polycurve)
+            houses, lines, polycurve, building_high)
         return non_clashing_houses
 
 
@@ -288,11 +292,14 @@ def remove_housing_clashes(houses, building_high):
                     if rg.Intersect.Intersection.CurveLine(house_curve, sublist3[1], 0, 0).Count > 0:
                         clashing = True
             if clashing == False:
-                non_clashing_houses.append(house_curve)
+                house_brep = rg.Extrusion.Create(
+                    house_curve, -building_high, True).ToBrep()
+                non_clashing_houses.append(house_brep)
+
     return non_clashing_houses
 
 
-def remove_clashing_housing_in_quartier(house_pols, lines):
+def remove_clashing_housing_in_quartier(house_pols, lines, height):
     non_clashing_houses = []
     house_pols = flatten_lst(house_pols)
     if len(house_pols) > 2:
@@ -304,11 +311,12 @@ def remove_clashing_housing_in_quartier(house_pols, lines):
                         if rg.Intersect.Intersection.CurveCurve(house, line.ToNurbsCurve(), 0, 0).Count > 0:
                             clashing = True
                 if clashing == False:
-                    non_clashing_houses.append(house)
+                    house_brep = rg.Extrusion.Create(house, -height, True).ToBrep()
+                    non_clashing_houses.append(house_brep)
     return non_clashing_houses
 
 
-def remove_clashing_housing_in_quartier_2(house_pols, lines, polycurve):
+def remove_clashing_housing_in_quartier_2(house_pols, lines, polycurve, height):
     non_clashing_houses = []
     house_pols = flatten_lst(house_pols)
     if len(house_pols) > 2:
@@ -327,10 +335,9 @@ def remove_clashing_housing_in_quartier_2(house_pols, lines, polycurve):
                     inter_count = rg.Intersect.Intersection.CurveCurve(
                         polycurve.ToNurbsCurve(), in_out_line.ToNurbsCurve(), 0, 0).Count
                     if inter_count % 2 != 0:
-                        non_clashing_houses.append(house)
+                        house_brep = rg.Extrusion.Create(house, -height, True).ToBrep()
+                        non_clashing_houses.append(house_brep)
     return non_clashing_houses
-
-
 
 
 def define_high_houses(non_clashing_houses, building_high, building_width):
@@ -375,7 +382,7 @@ def remove_housing_clashes_dif_plots(houses, building_high, building_width):
     pol_dis_lst = define_high_houses(non_clashing_houses, building_high, building_width)
     house_solids = extrude_curves(pol_dis_lst)        
     return house_solids
- 
+
 
 def green_plots(polycurve, building_high, rgbs, color):
     patchs = []
@@ -755,8 +762,15 @@ def geometry_lists(container_dictionaries, parks):
 
 def clustering_values_geometry_compute(container_dictionaries):
     # geometry dictionaries
-    plot_building_dict = container_dictionaries[1]
-    plots_pol = plot_building_dict.keys()
+    if len(container_dictionaries) == 2:
+        plot_building_dict = container_dictionaries[1]
+        plots_pol = plot_building_dict.keys()
+        plot_green_dict = None
+    else:
+        plot_building_dict = container_dictionaries[1]
+        plots_pol = plot_building_dict.keys()
+        plot_green_dict = container_dictionaries[2]
+        #print plot_green_dict
 
     ### clustering values ###
 
@@ -784,22 +798,39 @@ def clustering_values_geometry_compute(container_dictionaries):
     # prav = plot_roof_areas_variance - out
     # prhv = plot_roof_heights_variance - out
 
+    # g = is_green (0 cast to false and 1 casts to true)
+
     # fullfill first three lists
     patch_building_dict = {}
     clustering_dic = {}
+    green_dic = {}
     for plot in plots_pol:
+
         clustering_dic[plot] = {"pa": None, "pp": None, "prba": None, "papb": None, "psvb": None, 
                                 "sapa": None,"pram": None, "prhm": None,"pbn": None, "ccm": None, 
                                 "com": None, "ccv": None, "cov": None,"pvbm": None,  "pvbv": None}
 
+        breps_in_plot = plot_building_dict[plot]
+        patch = rg.Extrusion.Create(plot.ToNurbsCurve(), 0.2, True)
         pa = rg.AreaMassProperties.Compute(plot.ToNurbsCurve(), 0.001).Area
         pp = plot.Length
         clustering_dic[plot]["pa"] = rg.AreaMassProperties.Compute(
             plot.ToNurbsCurve(), 0.001).Area
+        if plot_green_dict:
+            if plot_green_dict[plot] == "green":
+                #green = plot_building_dict[plot]
+                green_dic[plot] = "green"
+                clustering_dic[plot]["g"] = 1
+                patch_building_dict[plot] = [breps_in_plot + [patch]]
+                for k, v in clustering_dic[plot].items():
+                    if k != "g" and k != "pa":
+                        clustering_dic[plot][k] = 0
+                continue
+
         clustering_dic[plot]["pp"] = plot.Length
         clustering_dic[plot]["prba"] = min_rotated_bbx_area(plot)
         clustering_dic[plot]["papb"] = min_rotated_bbx_area(plot)
-        breps_in_plot = plot_building_dict[plot]
+
         vol_sum = 0
         height_lst = []
         roof_area_lst = []
@@ -812,6 +843,10 @@ def clustering_values_geometry_compute(container_dictionaries):
                 b = brep
             else:
                 b = brep[0]
+            if isinstance(b, rg.Brep):
+                b = b
+            else:
+                b = b[0]
             vol = b.GetVolume()
             vol_sum += vol
             height, roof_area, brep_centroid = brep_face_values(b)
@@ -836,14 +871,14 @@ def clustering_values_geometry_compute(container_dictionaries):
         clustering_dic[plot]["ccv"] = ccv
         clustering_dic[plot]["cov"] = cov
 
-        patch = rg.Extrusion.Create(plot.ToNurbsCurve(), 0.2, True)
-        patch_building_dict[patch] = breps_in_plot
+        #patch = rg.Extrusion.Create(plot.ToNurbsCurve(), 0.2, True)
+        patch_building_dict[plot] = [breps_in_plot + [patch]]
 
-    return clustering_dic, patch_building_dict
+    return clustering_dic, patch_building_dict, green_dic
 
 
 def normalized_clustering_dict(container_dictionaries):
-    clustering_values, clustering_geo_dic = clustering_values_geometry_compute(
+    clustering_values, clustering_geo_dic, green_dic = clustering_values_geometry_compute(
         container_dictionaries)
     to_normalize_dic = {}
     for k, v in clustering_values.items():
@@ -861,7 +896,7 @@ def normalized_clustering_dict(container_dictionaries):
         normalized_clustering_values[k] = {}
         for vk, vv in v.items():
             normalized_clustering_values[k][vk] = (vv - n_dic[vk]["base"]) / n_dic[vk]["range"]
-    return normalized_clustering_values, clustering_values
+    return normalized_clustering_values, clustering_values, green_dic
 
 
 def min_rotated_bbx_area(plot):
@@ -932,14 +967,236 @@ def variance(data):
   return variance
 
 
-# # normalize values
-# def normalize(lst):
-#     base = min(lst)
-#     range = max(lst) - base
-#     normalized = [(x-base)/range for x in lst]
-#     return normalized
+# normalize values
+def normalize(lst):
+    base = min(lst)
+    range = max(lst) - base
+    normalized = [(x-base)/range for x in lst]
+    return normalized
 
 
-def compute_optimization_value(cpn, cr, opt_keys,opt_values, geo_keys, 
-                                geo_values, weights):
-    pass
+def normalize_opt_geo_values_dic(cpn, cr, opt_keys, opt_values, geo_keys, geo_values):
+    # cluster_n = 0
+    # opt_dic = {}
+    # for c, opt_lst_values in zip(cr, opt_values):
+    #     opt_dic[cluster_n] = {"group" : c, "values": opt_lst_values}
+    #     cluster_n += 1
+
+    # gen_n = 0
+    # gen_dic = {}
+    # for opt_lst_values in geo_values:
+    #     gen_dic[gen_n] = {"group": cpn, "values": opt_lst_values}
+    #     gen_n += 1
+    to_normalize_dic = {}
+    for c, opt_lst_values in zip(cr, opt_values):
+        if c not in to_normalize_dic.keys():
+            to_normalize_dic[c] = {}
+        for k in opt_keys:
+            #for k_t, v_t in to_normalize_dic[c].items():
+            if k in to_normalize_dic[c].keys():
+                pass
+            else:
+                to_normalize_dic[c][k] = []
+        for k,v in zip(opt_keys, opt_lst_values):
+            to_normalize_dic[c][k].append(v)
+
+
+    to_normalize_geo = {}
+    normalized_value_dic = {}
+    for k, v in to_normalize_dic.items():
+        normalized_value_dic[k] = {}
+        to_normalize_geo[k] = {}
+        for vk, vv in v.items():
+            base = min(vv)
+            rang = max(vv) - base
+            to_normalize_geo[k][vk] = {"base" : base, "range" : rang}
+            normalized_lst = []
+            for x in vv:
+                if rang == 0:
+                    norm_value = 1
+                else:
+                    norm_value = (x-base)/rang
+                normalized_lst.append(norm_value)
+            normalized_value_dic[k][vk] = normalized_lst
+    #print normalized_value_dic
+
+    normalized_geo = {cpn : {}}
+    plot_number = 0
+    g_index = geo_keys.index("g")
+    for geo_sblt_values in geo_values:
+        normalized_geo[cpn][plot_number] = {}
+        if geo_sblt_values[g_index] == 0:
+            for k, v in zip(geo_keys, geo_sblt_values):
+                if k == "g":
+                    pass
+                else:
+                    base_range_dic = to_normalize_geo[cpn][k]
+                    base = base_range_dic["base"]
+                    rang = base_range_dic["range"]
+                    if rang == 0:
+                        normalized_value = 1
+                    else:
+                        normalized_value = (v-base)/rang
+                    # if normalized_value > 1:
+                    #     normalized_value = 1
+                    # if normalized_value < 0:
+                    #     normalized_value = 0
+                    normalized_geo[cpn][plot_number].update({k: normalized_value})
+        else:
+            pa_index = geo_keys.index("pa")
+            pa_value = geo_sblt_values[pa_index]
+            normalized_geo[cpn][plot_number].update({"pa": pa_value})
+            normalized_geo[cpn][plot_number].update({"ga": "green"})
+
+        plot_number += 1
+
+    # normalized_geo_dic = {}
+    # normalized_gren_dic = {}
+    for k, v in normalized_geo.items():
+        normalized_geo_dic = {k:{}}
+        green_dic = {k: {}}
+        for kv, vv in v.items():
+            if "ga" not in vv.keys():
+                for kvv, vvv in vv.items():
+                    if kvv in normalized_geo_dic[k].keys():
+                        pass
+                    else:
+                        normalized_geo_dic[k][kvv] = []
+                    normalized_geo_dic[k][kvv].append(vvv)
+            else:
+                for kvv, vvv in vv.items():
+                    if kvv in green_dic[k].keys():
+                        pass
+                    else:
+                        green_dic[k][kvv] = []
+                    green_dic[k][kvv].append(vvv)
+
+    #print normalized_geo_dic
+    return normalized_value_dic, normalized_geo_dic, green_dic
+
+
+def normalize_opt_geo_values_dic_02(cr, opt_keys, opt_values, geo_keys, geo_values):
+    # create referenced dictionary
+    referenced_geo_dic = {}
+    for cluster_n, value_lst in zip(cr, opt_values):
+        if cluster_n not in referenced_geo_dic.keys():
+            referenced_geo_dic[cluster_n] = {}
+        for k, v in zip(opt_keys, value_lst):
+            if k not in referenced_geo_dic[cluster_n]:
+                referenced_geo_dic[cluster_n][k] = []
+            referenced_geo_dic[cluster_n][k].append(v)
+
+    # create generated geo dictionary
+    generated_geo_dic = {}
+    green_dic = {}
+    for lst_values in geo_values:
+        if lst_values[0] == 1: # it is green plot
+            pa_index = geo_keys.index("pa")
+            if "pa" not in green_dic.keys():
+                green_dic["pa"] = []
+            green_dic["pa"].append(lst_values[pa_index])
+        else: # it is not a green plot
+            for k,v in zip(geo_keys, lst_values):
+                if k != "g":
+                    if k not in generated_geo_dic.keys():
+                        generated_geo_dic[k] = []
+                    generated_geo_dic[k].append(v)
+
+    return referenced_geo_dic, generated_geo_dic, green_dic
+
+def compute_mean_dic(dic):
+    mean_dic = {}
+    for k,v in dic.items():
+        mean_dic[k] = {}
+        for kv, vv in v.items():
+            mean_dic[k][kv] = mean(vv)
+    return mean_dic
+
+def remap(val, val_goal, max_value, min_value=0):
+    dif = abs(val - val_goal)
+    min_goal_dif = abs(val_goal - min_value)
+    max_goal_dif = abs(val_goal - max_value)
+    remap_value = min_goal_dif
+    if val > val_goal:
+        remap_value = max_goal_dif
+    #print val, "/", val_goal, "/", max_value, "/", min_value, "/", "remap_value", remap_value
+    if remap_value == 0:
+        scaled_value = 0
+    else:
+        porcentaje = dif / remap_value
+        scaled_value = porcentaje ** 2
+        # in case scales value is bigger than 1, it means that val is not within the range of max and min value, we dont allow to go beyond 2 
+        if scaled_value > 2:
+            scaled_value = 2
+    return scaled_value
+
+def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_goal, cpn, normalize_values_dic, weights, weights_bool):
+    referenced_geo_dic = normalize_values_dic[0]
+    generated_geo_dic = normalize_values_dic[1]
+    green_dic = normalize_values_dic[2]
+
+    sum_value = 0
+    plot_n_goal -= green_n_goal
+    # plot goals penalization
+    if generated_geo_dic == {}:
+        plot_penalization = plot_n_goal * 2
+    else:
+        plots = len(generated_geo_dic["pa"])
+        plot_penalization = abs(plot_n_goal - plots) * 2
+    sum_value += plot_penalization
+
+    # green n plots penalization
+    if green_dic == {}:
+        green_penalization = green_n_goal
+    else:
+        green_plot = len(green_dic["pa"]) 
+        green_penalization = abs(green_n_goal - green_plot)
+    sum_value += green_penalization
+
+    # green area penalization
+    plot_area = rg.AreaMassProperties.Compute(plot.ToNurbsCurve()).Area
+    green_area_goal = plot_area * green_per_area_goal / 100
+    if green_dic == {}:
+        green_area_penalization = 1
+    else:
+        sum_pa = sum(green_dic["pa"])
+        green_area_penalization = remap(sum_pa, green_area_goal, plot_area)
+    sum_value += green_area_penalization
+
+    #print referenced_geo_dic[cpn]
+
+    # geometry penalizations
+    weights_order = ["pa", "pp","prba","papb","psvb","sapa","ccm","com","ccv","cov","pvbm","pvbv","pbn","pram","prhm"]
+    #optimization_values_dic = {}
+    if generated_geo_dic == {}:
+        sum_value += 20
+    else:
+        for o, w in zip(weights_order, weights):
+            goal_values = referenced_geo_dic[cpn][o]
+            goal_value = mean(goal_values) # the goal is to hit the average value
+            max_value = max(goal_values)
+            min_value = min(goal_values)
+            generated_values = generated_geo_dic[o]
+            for value in generated_values:
+                geometry_penalization = remap(
+                    value, goal_value, max_value, min_value) * w / 2#(plot_n_goal + green_n_goal)
+                sum_value += geometry_penalization
+    #     break
+    #     opt_value = abs(goal_value -geo_value)
+    #     exp_opt_value = (2 ** opt_value) - 1
+    #     # to avoid values go to hight and shade other parameters
+    #     if exp_opt_value >= 6:
+    #         exp_opt_value = 6
+    #     # to consider boolean or ont
+    #     if weights_bool == True:
+    #         exp_opt_value *= w
+    #     optimization_values_dic[o] = exp_opt_value
+    
+    # sum_value = 0
+    # for k, v in optimization_values_dic.items():
+    #     sum_value += v
+    # sum_value += plot_penalization
+
+    return sum_value
+
+
