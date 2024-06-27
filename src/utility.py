@@ -752,12 +752,20 @@ def geometry_flatten_lists(container_dictionaries):
 def geometry_lists(container_dictionaries, parks):
     dic_1 = container_dictionaries[0]
     dic_2 = container_dictionaries[1]
-    # dic_1_extended = {}
-    # for k, v_lst in dic_1.items():
-    #     dic_1_extended[k] = {}
-    #     for v in v_lst:
-    #         dic_1_extended[k][v] = dic_2[v]
-    return dic_1, dic_2, parks
+
+    park_breps = []
+    for park in parks:
+        extrusion = rg.Extrusion.Create(park.ToNurbsCurve(), 0.1, True)
+        if extrusion:
+            park_breps.append(extrusion.ToBrep())
+
+    plot_building_breps = []
+    for k,v in dic_2.items():
+        extrusion = rg.Extrusion.Create(k.ToNurbsCurve(), 0.1, True)
+        if extrusion:
+            plot_building_breps.append(v + [extrusion.ToBrep()])
+
+    return dic_1, dic_2, plot_building_breps, park_breps
 
 
 def clustering_values_geometry_compute(container_dictionaries):
@@ -1089,19 +1097,24 @@ def normalize_opt_geo_values_dic_02(cr, opt_keys, opt_values, geo_keys, geo_valu
     # create generated geo dictionary
     generated_geo_dic = {}
     green_dic = {}
+    #print geo_values, "geo_values"
     for lst_values in geo_values:
+        #print lst_values, "lstvalues", len(lst_values)
         if lst_values[0] == 1: # it is green plot
             pa_index = geo_keys.index("pa")
             if "pa" not in green_dic.keys():
                 green_dic["pa"] = []
             green_dic["pa"].append(lst_values[pa_index])
         else: # it is not a green plot
+            if len(geo_keys) == 16:
+                geo_keys = geo_keys[1:]
             for k,v in zip(geo_keys, lst_values):
+                #print k
                 if k != "g":
                     if k not in generated_geo_dic.keys():
                         generated_geo_dic[k] = []
                     generated_geo_dic[k].append(v)
-
+    #print generated_geo_dic
     return referenced_geo_dic, generated_geo_dic, green_dic
 
 def compute_mean_dic(dic):
@@ -1122,15 +1135,18 @@ def remap(val, val_goal, max_value, min_value=0):
     #print val, "/", val_goal, "/", max_value, "/", min_value, "/", "remap_value", remap_value
     if remap_value == 0:
         scaled_value = 0
+        out_percentaje = 0
     else:
         porcentaje = dif / remap_value
         scaled_value = porcentaje ** 2
         # in case scales value is bigger than 1, it means that val is not within the range of max and min value, we dont allow to go beyond 2 
         if scaled_value > 2:
             scaled_value = 2
-    return scaled_value
+        out_percentaje = porcentaje * 100
+    return scaled_value, out_percentaje
 
-def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_goal, cpn, normalize_values_dic, weights, weights_bool):
+
+def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_goal, cpn, normalize_values_dic, weights, weights_bool, chart_bool):
     referenced_geo_dic = normalize_values_dic[0]
     generated_geo_dic = normalize_values_dic[1]
     green_dic = normalize_values_dic[2]
@@ -1160,10 +1176,30 @@ def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_g
         green_area_penalization = 1
     else:
         sum_pa = sum(green_dic["pa"])
-        green_area_penalization = remap(sum_pa, green_area_goal, plot_area)
+        green_area_penalization, out_percentaje = remap(
+            sum_pa, green_area_goal, plot_area)
     sum_value += green_area_penalization
 
     #print referenced_geo_dic[cpn]
+    referenced_geo_chart = []
+    generated_geo_chart = []
+    weights_order_to_output = []
+    referenced_generated_percentaje = []
+
+    parameter_dic = {"pa": "plot area",
+                     "pp": "plot perimeter",
+                     "prba": "plot bbx area",
+                     "papb": "plot area / plot bbx area",
+                     "psvb": "sum building volume",
+                     "sapa": "sum building floor area",
+                     "ccm": "mean distance building to plot centroid",
+                     "com": "mean distance building to plot outline",
+                     "ccv": "variance distance building to plot centroid",
+                     "cov": "variance distance building to plot outline",
+                     "pvbm": "mean building volume",
+                     "pbn": "number buildings",
+                     "pram": "mean building roof area",
+                     "prhm": "mean building roof height"}
 
     # geometry penalizations
     weights_order = ["pa", "pp","prba","papb","psvb","sapa","ccm","com","ccv","cov","pvbm","pvbv","pbn","pram","prhm"]
@@ -1171,32 +1207,28 @@ def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_g
     if generated_geo_dic == {}:
         sum_value += 20
     else:
+        print generated_geo_dic
         for o, w in zip(weights_order, weights):
             goal_values = referenced_geo_dic[cpn][o]
             goal_value = mean(goal_values) # the goal is to hit the average value
             max_value = max(goal_values)
             min_value = min(goal_values)
             generated_values = generated_geo_dic[o]
+            percentajes = []
             for value in generated_values:
-                geometry_penalization = remap(
-                    value, goal_value, max_value, min_value) * w / 2#(plot_n_goal + green_n_goal)
+                geometry_penalization, out_percentaje = remap(
+                    value, goal_value, max_value, min_value)
+                geometry_penalization *= w / 2
+                percentajes.append(out_percentaje)
                 sum_value += geometry_penalization
-    #     break
-    #     opt_value = abs(goal_value -geo_value)
-    #     exp_opt_value = (2 ** opt_value) - 1
-    #     # to avoid values go to hight and shade other parameters
-    #     if exp_opt_value >= 6:
-    #         exp_opt_value = 6
-    #     # to consider boolean or ont
-    #     if weights_bool == True:
-    #         exp_opt_value *= w
-    #     optimization_values_dic[o] = exp_opt_value
-    
-    # sum_value = 0
-    # for k, v in optimization_values_dic.items():
-    #     sum_value += v
-    # sum_value += plot_penalization
+            
+            if chart_bool:
+                if o in parameter_dic.keys():
+                    weights_order_to_output.append(parameter_dic[o])
+                    referenced_geo_chart.append(goal_value)
+                    generated_geo_chart.append(mean(generated_values))
+                    referenced_generated_percentaje.append(round(mean(percentajes),2))
 
-    return sum_value
+    return sum_value, weights_order_to_output, referenced_geo_chart, generated_geo_chart, referenced_generated_percentaje
 
 

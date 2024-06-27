@@ -7,7 +7,7 @@ class Optimization:
 
     def __init__(
         self, plot, plot_n_goal, green_n_goal, green_per_area_goal, clustering_pick_n, clustering_results,
-        opt_keys, opt_values, geo_keys, geo_values, weights, weights_bool
+        opt_keys, opt_values, geo_keys, geo_values, weights, weights_bool, chart_bool
         ):
         self.plot = plot
         self.plot_n_goal = plot_n_goal
@@ -21,6 +21,7 @@ class Optimization:
         self.geo_values = geo_values
         self.weights = weights
         self.weights_bool = weights_bool
+        self.chart_bool = chart_bool
 
 
     @property
@@ -30,6 +31,6 @@ class Optimization:
     
     def optimization_value(self):
         return compute_optimization_value(self.plot, self.plot_n_goal, self.green_n_goal, self.green_per_area_goal,
-                                         self.cpn, self.normalize_values_dic, self.weights, self.weights_bool)
+                                          self.cpn, self.normalize_values_dic, self.weights, self.weights_bool, self.chart_bool)
 
     
