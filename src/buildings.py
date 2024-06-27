@@ -36,8 +36,3 @@ class Buildings:
     def clustering_values_geometry(self):
         return clustering_values_geometry_compute(self.plot_houses)
     
-    # def plots(self):
-    #     return green_plots(self.plot_polylines, self.building_high, self.rgbs, self.color)
-
-    # test
-

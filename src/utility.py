@@ -63,39 +63,6 @@ def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis
                     plot_green_dic[offset_pol] = None
             plot_patches_dic[plot] = patch
 
-    # remove clashing buildings
-    # no_none_buildings = remove_nones(buildings)
-    # no_clash_breps = remove_housing_clashes_dif_plots(no_none_buildings, min(building_high), min(building_width))
-    # for sublst in solids:
-    #     for solid in sublst:
-    #         no_clash_breps.extend(solid)
-    #opt_values = plot_opt_lst(plot_polylines, no_clash_breps, min(building_high) * 0.5)
-    #opt_values = []
-    #means_lst = opt_values
-    #means_lst = average_list(opt_values)
-    # if color:
-    #     rgb = System.Drawing.Color.FromArgb(rgbs[0]+50,rgbs[1]+50, rgbs[2]+50)
-    #     color_breps = visualize_apartments(no_clash_breps, rgb)
-    #     return color_breps, opt_values
-    # else:
-    #     return no_clash_breps, opt_values
-
-    # patchs = []
-    # non_none_pol = remove_nones(polycurve)
-    # for guid, b_high in zip(non_none_pol, building_high):
-    #     curve = rs.coercecurve(guid)
-    #     offset_pol = offset_curve(curve, b_high * 0.5)
-    #     # patchs.append(offset_pol)
-    #     if offset_pol:
-    #         patch = rg.Extrusion.Create(offset_pol.ToNurbsCurve(), 0.2, True)
-    #         patchs.append(patch)
-    
-    # patchs = []
-    # for guid in plot_polylines:
-    #     curve = rs.coercecurve(guid)
-    #     offset_pol = offset_curve(curve, b_high * 0.5)
-    #     patch = rg.Extrusion.Create(curve.ToNurbsCurve(), 0.2, True)
-    #     patchs.append(patch)
     return plot_patches_dic, houses_in_plot_dic, plot_green_dic
 
 
@@ -340,50 +307,6 @@ def remove_clashing_housing_in_quartier_2(house_pols, lines, polycurve, height):
     return non_clashing_houses
 
 
-def define_high_houses(non_clashing_houses, building_high, building_width):
-    distances = []
-    for i, pol_1 in enumerate(non_clashing_houses):
-        line_distances = []
-        for j, pol_2 in enumerate(non_clashing_houses):
-            if i != j:
-                points = pol_1.ClosestPoints(pol_2)
-                dis = points[1].DistanceTo(points[2])
-                line_distances.append(dis)
-        line_distances.sort()
-        if len(line_distances) > 0:
-            distances.append([pol_1, line_distances[0]])
-        else:
-            distances.append([pol_1, 0.0])
-    pol_dis_lst = []
-    for sublst in distances:
-        if sublst[1] < 0.1 * building_width:
-            pol_dis_lst.append([sublst[0], building_high + 2])
-        if sublst[1] >= 0.1 * building_width and sublst[1] < 1 * building_width:
-            pol_dis_lst.append([sublst[0], building_high - 2])
-        elif sublst[1] >= 1 * building_width:
-            pol_dis_lst.append([sublst[0], building_high + 4])
-    return pol_dis_lst
-
-
-def remove_housing_clashes_dif_plots(houses, building_high, building_width):
-    non_clashing_houses = []
-    if len(houses) > 0:
-        for i, sublist in enumerate(houses):
-            if isinstance(sublist, list):
-                for house_curve in sublist:
-                    clashing = False
-                    for j, sublist2 in enumerate(houses):
-                        if i != j and i > j:
-                            for house_curve2 in sublist2:
-                                if rg.Intersect.Intersection.CurveCurve(house_curve, house_curve2, building_high * 0.4, 0.01).Count > 0:
-                                    clashing = True
-                    if clashing == False:
-                        non_clashing_houses.append(house_curve)
-    pol_dis_lst = define_high_houses(non_clashing_houses, building_high, building_width)
-    house_solids = extrude_curves(pol_dis_lst)        
-    return house_solids
-
-
 def green_plots(polycurve, building_high, rgbs, color):
     patchs = []
     non_none_pol = remove_nones(polycurve)
@@ -401,131 +324,9 @@ def green_plots(polycurve, building_high, rgbs, color):
         return patchs
 
 
-def point_in_curve(points, pol):
-    results = []
-    for p in points:
-        z_val = pol.PointAt(0).Z
-        line = rg.Line(rg.Point3d(p.X, p.Y, z_val), rg.Point3d(0,0,z_val)).ToNurbsCurve()
-        count = rg.Intersect.Intersection.CurveCurve(pol.ToNurbsCurve(), line, 0, 0).Count
-        if count % 2 != 0 and count != 0:
-            results.append(2)
-        else:
-            results.append(0)
-    return results
-
-
-def perimeter_len(pol):
-    per = 0
-    lines = pol.GetSegments()
-    lenghts = []
-    for line in lines:
-        len = line.Length
-        per += len
-        lenghts.append(len)
-    lenghts.sort(reverse=True)
-    return per, lenghts[0]
-
-
-def plot_opt_lst(offset_plots, no_clash_breps, street_width):
-    try:
-        offset_pol = [offset_curve(coerce_curve(plot), street_width) for plot in offset_plots]
-        brep_points = [rg.VolumeMassProperties.Compute(brep).Centroid for brep in no_clash_breps if brep]
-        relationships = []
-        for pol in offset_pol:
-            if pol:
-                relationships.append(point_in_curve(brep_points, pol))
-
-        areas = []
-        surf_perimeter = []
-        surf_longest_segment = []
-        centroids = []
-        
-        for plot in offset_pol:
-            if plot:
-                areaMass = rg.AreaMassProperties.Compute(plot.ToNurbsCurve())
-                if areaMass:
-                    areas.append(areaMass.Area)
-                    per_len = perimeter_len(plot)
-                    surf_perimeter.append(per_len[0])
-                    surf_longest_segment.append(per_len[1])
-                    centroids.append(areaMass.Centroid)
-        
-        plot_geo_lst = []
-        plot_only_geo_list = []
-        for a, p, l, c, o in zip(areas, surf_perimeter, surf_longest_segment, centroids, offset_plots):
-            plot_geo_lst.append([a, p, l, c, o])
-            plot_only_geo_list.append([a])
-
-        for i in range(0, len(relationships)):
-            for j in range(0, len(relationships[i])):
-                brep = no_clash_breps[j]
-                if relationships[i][j] == 2:
-                    plot_geo_lst[i].append(brep)
-                    plot_only_geo_list[i].append(brep)
-
-        plot_info_lst = []
-        for sublst in plot_geo_lst:
-            area = 0
-            outline_len = 0
-            longest_outline = 0
-            vol = 0
-            av_vol_centroid_dis = 0
-            av_vol_centroid_outline_dis = 0
-            av_vol = 0
-            if len(sublst) == 5:
-                area = sublst[0]
-                outline_len = sublst[1]
-                longest_outline = sublst[2]
-            if len(sublst) > 5:
-                area = sublst[0]
-                outline_len = sublst[1]
-                longest_outline = sublst[2]
-                cen = rs.coerce3dpoint(sublst[3])
-                cen_2p = rg.Point2d(cen.X, cen.Y)
-                for brep in sublst[5:]:
-                    brep = rs.coercebrep(brep)
-                    volume_prop =  rg.VolumeMassProperties.Compute(brep)
-                    volumen = volume_prop.Volume
-                    centroid = volume_prop.Centroid
-                    centroid_2p = rg.Point2d(centroid.X, centroid.Y)
-                    if volumen:
-                        vol += volumen
-                    if centroid:
-                        av_vol_centroid_dis += cen_2p.DistanceTo(centroid_2p)
-                        out_curve = rs.coercecurve(sublst[4])
-                        dis_param = out_curve.ClosestPoint(centroid, 0)
-                        p1 = out_curve.PointAt(dis_param[1])
-                        av_vol_centroid_outline_dis += p1.DistanceTo(centroid)
-                av_vol_centroid_outline_dis /= (len(sublst)-5)        
-                av_vol_centroid_outline_dis += 5
-                av_vol_centroid_dis /= (len(sublst)-5)
-                av_vol = vol / (len(sublst)-5)
-            plot_info_lst.append([area, outline_len, longest_outline, vol, av_vol_centroid_dis, av_vol_centroid_outline_dis, av_vol])
-    
-        return plot_info_lst
-    except:
-        plot_info_lst = []
-        for a in offset_plots:
-            plot_info_lst.append([1,1,1,1,1,1,1])
-        return plot_info_lst
-
 def mean(lst):
     return sum(lst) / len(lst)
     
-
-def average_list(lst):
-    transpose = zip(*lst)
-    transpose_average = [mean(sublst) for sublst in transpose]
-    return transpose_average
-
-
-def radians_to_degrees(angle):
-    return angle * 180 / math.pi
-
-
-def degrees_to_radians(angle):
-    return angle * math.pi /180
-
 
 def remove_nones(buildings):
     no_none_buildings = []
@@ -535,13 +336,6 @@ def remove_nones(buildings):
                 if sublist != None:
                     no_none_buildings.append(sublist)
     return no_none_buildings
-
-
-def brep_from_loft(polycurve1, polycurve2):
-    if polycurve1 and polycurve2:
-        return rg.Brep.CreateFromLoft([polycurve1.ToNurbsCurve(), polycurve2.ToNurbsCurve()], rg.Point3d.Unset, rg.Point3d.Unset, rg.LoftType.Straight, False)[0]
-    else:
-        return []
 
 
 def house_pol(p0, tangent, normal, house_length, building_width):
@@ -561,23 +355,6 @@ def scale_curve(curve, curve_length_factor):
     p2 = p0 + ((vec * len * curve_length_factor) / 2 )
     new_curve = rg.Line(p1, p2)
     return new_curve
-
-
-def extrude_curves(pol_dis_lst):
-    breps = []
-    for sublst in pol_dis_lst:
-        breps.append(rg.Extrusion.Create(sublst[0], -sublst[1], True))
-    return breps
-
-
-def create_colors():
-    """Assign color to apartment based on tag"""
-    colors = {}
-    color_slab = System.Drawing.Color.FromArgb(255, 171, 74)
-    color_column = System.Drawing.Color.FromArgb(255, 250, 74)
-    color_core = System.Drawing.Color.FromArgb(160, 160, 160)
-    colors = {'slab' : color_slab, 'column': color_column, 'core' : color_core}
-    return colors
 
 
 def extrusion_to_colored_mesh(ext, color):
@@ -983,106 +760,6 @@ def normalize(lst):
     return normalized
 
 
-def normalize_opt_geo_values_dic(cpn, cr, opt_keys, opt_values, geo_keys, geo_values):
-    # cluster_n = 0
-    # opt_dic = {}
-    # for c, opt_lst_values in zip(cr, opt_values):
-    #     opt_dic[cluster_n] = {"group" : c, "values": opt_lst_values}
-    #     cluster_n += 1
-
-    # gen_n = 0
-    # gen_dic = {}
-    # for opt_lst_values in geo_values:
-    #     gen_dic[gen_n] = {"group": cpn, "values": opt_lst_values}
-    #     gen_n += 1
-    to_normalize_dic = {}
-    for c, opt_lst_values in zip(cr, opt_values):
-        if c not in to_normalize_dic.keys():
-            to_normalize_dic[c] = {}
-        for k in opt_keys:
-            #for k_t, v_t in to_normalize_dic[c].items():
-            if k in to_normalize_dic[c].keys():
-                pass
-            else:
-                to_normalize_dic[c][k] = []
-        for k,v in zip(opt_keys, opt_lst_values):
-            to_normalize_dic[c][k].append(v)
-
-
-    to_normalize_geo = {}
-    normalized_value_dic = {}
-    for k, v in to_normalize_dic.items():
-        normalized_value_dic[k] = {}
-        to_normalize_geo[k] = {}
-        for vk, vv in v.items():
-            base = min(vv)
-            rang = max(vv) - base
-            to_normalize_geo[k][vk] = {"base" : base, "range" : rang}
-            normalized_lst = []
-            for x in vv:
-                if rang == 0:
-                    norm_value = 1
-                else:
-                    norm_value = (x-base)/rang
-                normalized_lst.append(norm_value)
-            normalized_value_dic[k][vk] = normalized_lst
-    #print normalized_value_dic
-
-    normalized_geo = {cpn : {}}
-    plot_number = 0
-    g_index = geo_keys.index("g")
-    for geo_sblt_values in geo_values:
-        normalized_geo[cpn][plot_number] = {}
-        if geo_sblt_values[g_index] == 0:
-            for k, v in zip(geo_keys, geo_sblt_values):
-                if k == "g":
-                    pass
-                else:
-                    base_range_dic = to_normalize_geo[cpn][k]
-                    base = base_range_dic["base"]
-                    rang = base_range_dic["range"]
-                    if rang == 0:
-                        normalized_value = 1
-                    else:
-                        normalized_value = (v-base)/rang
-                    # if normalized_value > 1:
-                    #     normalized_value = 1
-                    # if normalized_value < 0:
-                    #     normalized_value = 0
-                    normalized_geo[cpn][plot_number].update({k: normalized_value})
-        else:
-            pa_index = geo_keys.index("pa")
-            pa_value = geo_sblt_values[pa_index]
-            normalized_geo[cpn][plot_number].update({"pa": pa_value})
-            normalized_geo[cpn][plot_number].update({"ga": "green"})
-
-        plot_number += 1
-
-    # normalized_geo_dic = {}
-    # normalized_gren_dic = {}
-    for k, v in normalized_geo.items():
-        normalized_geo_dic = {k:{}}
-        green_dic = {k: {}}
-        for kv, vv in v.items():
-            if "ga" not in vv.keys():
-                for kvv, vvv in vv.items():
-                    if kvv in normalized_geo_dic[k].keys():
-                        pass
-                    else:
-                        normalized_geo_dic[k][kvv] = []
-                    normalized_geo_dic[k][kvv].append(vvv)
-            else:
-                for kvv, vvv in vv.items():
-                    if kvv in green_dic[k].keys():
-                        pass
-                    else:
-                        green_dic[k][kvv] = []
-                    green_dic[k][kvv].append(vvv)
-
-    #print normalized_geo_dic
-    return normalized_value_dic, normalized_geo_dic, green_dic
-
-
 def normalize_opt_geo_values_dic_02(cr, opt_keys, opt_values, geo_keys, geo_values):
     # create referenced dictionary
     referenced_geo_dic = {}
@@ -1117,13 +794,6 @@ def normalize_opt_geo_values_dic_02(cr, opt_keys, opt_values, geo_keys, geo_valu
     #print generated_geo_dic
     return referenced_geo_dic, generated_geo_dic, green_dic
 
-def compute_mean_dic(dic):
-    mean_dic = {}
-    for k,v in dic.items():
-        mean_dic[k] = {}
-        for kv, vv in v.items():
-            mean_dic[k][kv] = mean(vv)
-    return mean_dic
 
 def remap(val, val_goal, max_value, min_value=0):
     dif = abs(val - val_goal)
@@ -1207,7 +877,6 @@ def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_g
     if generated_geo_dic == {}:
         sum_value += 20
     else:
-        print generated_geo_dic
         for o, w in zip(weights_order, weights):
             goal_values = referenced_geo_dic[cpn][o]
             goal_value = mean(goal_values) # the goal is to hit the average value
