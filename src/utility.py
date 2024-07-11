@@ -32,13 +32,13 @@ def coerce_curve(polycurve):
     return rs.coercecurve(polycurve)
 
 
-def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
+def houses_in_plots(plot_polylines, building_width, building_high, street_width, block_min_dis_factor, block_length_factor, block_line_length_factor, design_pick, rgbs, color):
     patchs = []
     houses_in_plot_dic = {}
     plot_patches_dic = {}
     plot_green_dic = {}
-    for plot, pick, b_len_factor, b_line_length_factor, b_width, b_high in zip(plot_polylines, design_pick, block_length_factor, block_line_length_factor, building_width, building_high):
-        houses = houses_in_plot(plot, b_high * 0.5, b_width, b_high, block_min_dis_factor, b_len_factor, b_line_length_factor, pick)
+    for plot, pick, b_len_factor, b_line_length_factor, b_width, b_high, s_width in zip(plot_polylines, design_pick, block_length_factor, block_line_length_factor, building_width, building_high, street_width):
+        houses = houses_in_plot(plot, s_width, b_width, b_high, block_min_dis_factor, b_len_factor, b_line_length_factor, pick)
         solids = []
         buildings = []
         if isinstance(houses, list):
@@ -49,7 +49,7 @@ def houses_in_plots(plot_polylines, building_width, building_high, block_min_dis
                     solids.extend(houses)
         # patches
         curve = rs.coercecurve(plot)
-        offset_pol = offset_curve(curve, b_high * 0.5)
+        offset_pol = offset_curve(curve, s_width)
         if offset_pol:
             patch = rg.Extrusion.Create(offset_pol.ToNurbsCurve(), 0.2, True)
             patchs.append(patch)
@@ -93,7 +93,10 @@ def house_picker(pick, offset_pol, building_width, building_high, block_length_f
     # if pick == 8:
     #     return garden_plot(offset_pol)
     if pick == 0 and offset_curve(offset_pol, 1.5 * building_width):
-        return block_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
+        try:
+            return block_houses(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
+        except:
+            return houses_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
     else:
         return houses_in_quartier(offset_pol, building_width, building_high, block_length_factor, block_line_length_factor)
 
@@ -192,9 +195,9 @@ def several_parallel_blocks(polycurve, building_width, building_high, block_leng
         tan = line.UnitTangent
         normal = rg.Vector3d.CrossProduct(rg.Vector3d(0,0,1), tan)
         distance_buildings_1 = 21 *\
-            block_line_length_factor * building_high / 10 + building_width
+            (block_line_length_factor +1)* 2 + building_width
         distance_buildings_2 = 25 * \
-            (1+block_line_length_factor) * building_high / 10
+            (1+block_line_length_factor) * 2 + building_width
         line_2a = rg.Line(p0 + normal * distance_buildings_1, p1 + normal * distance_buildings_1)
         line_2b = rg.Line(p0 - normal * distance_buildings_1,
                           p1 - normal * distance_buildings_1)
@@ -627,7 +630,10 @@ def clustering_values_geometry_compute(container_dictionaries):
             if isinstance(brep, rg.Brep):
                 b = brep
             else:
-                b = brep[0]
+                if brep:
+                    b = brep[0]
+                else:
+                    break
             if isinstance(b, rg.Brep):
                 b = b
             else:
@@ -710,11 +716,12 @@ def brep_face_values(brep):
     brep_centroids = []
     for f in brep.Faces:
         prop = rg.AreaMassProperties.Compute(f)
-        centroid = prop.Centroid
-        height = centroid.Z
-        heights.append(height)
-        prop_lst.append(prop)
-        brep_centroids.append(centroid)
+        if prop:
+            centroid = prop.Centroid
+            height = centroid.Z
+            heights.append(height)
+            prop_lst.append(prop)
+            brep_centroids.append(centroid)
     max_height = max(heights)
     brep_centroid = None
     for prop in prop_lst:
@@ -760,7 +767,7 @@ def normalize(lst):
     return normalized
 
 
-def normalize_opt_geo_values_dic_02(cr, opt_keys, opt_values, geo_keys, geo_values):
+def normalize_opt_geo_values_dic(cr, opt_keys, opt_values, geo_keys, geo_values):
     # create referenced dictionary
     referenced_geo_dic = {}
     for cluster_n, value_lst in zip(cr, opt_values):
@@ -781,7 +788,7 @@ def normalize_opt_geo_values_dic_02(cr, opt_keys, opt_values, geo_keys, geo_valu
             pa_index = geo_keys.index("pa")
             if "pa" not in green_dic.keys():
                 green_dic["pa"] = []
-            green_dic["pa"].append(lst_values[pa_index])
+            green_dic["pa"].append(lst_values[4])
         else: # it is not a green plot
             if len(geo_keys) == 16:
                 geo_keys = geo_keys[1:]
@@ -816,39 +823,64 @@ def remap(val, val_goal, max_value, min_value=0):
     return scaled_value, out_percentaje
 
 
+def compute_penalty(val, val_goal, max_value, min_value=0):
+    dif = abs(val - val_goal)
+    min_goal_dif = abs(val_goal - min_value)
+    max_goal_dif = abs(val_goal - max_value)
+    dif_value = min_goal_dif
+    if val > val_goal:
+        dif_value = max_goal_dif
+    if dif_value == 0:
+        penalty = 0
+    else:
+        porcentaje = dif / dif_value
+        penalty = porcentaje ** 2 # exponential funciton
+        # in case penalty is bigger than 1, it means that val is not within the range of max and min value, we dont allow to go beyond 2
+        if penalty > 2:
+            penalty = 2
+    return penalty
+
+
 def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_goal, cpn, normalize_values_dic, weights, weights_bool, chart_bool):
     referenced_geo_dic = normalize_values_dic[0]
     generated_geo_dic = normalize_values_dic[1]
     green_dic = normalize_values_dic[2]
+    penalization_dic = {}
 
     sum_value = 0
     plot_n_goal -= green_n_goal
     # plot goals penalization
     if generated_geo_dic == {}:
-        plot_penalization = plot_n_goal * 2
+        plot_penalization = plot_n_goal * 4
+        penalization_dic["01_plot_penalization"] = plot_penalization
     else:
         plots = len(generated_geo_dic["pa"])
-        plot_penalization = abs(plot_n_goal - plots) * 2
+        plot_penalization = abs(plot_n_goal - plots) * 4
+        penalization_dic["01_plot_penalization"] = plot_penalization
     sum_value += plot_penalization
 
     # green n plots penalization
     if green_dic == {}:
-        green_penalization = green_n_goal
+        green_penalization = green_n_goal*3
+        penalization_dic["02_green_penalization"] = green_penalization
     else:
-        green_plot = len(green_dic["pa"]) 
-        green_penalization = abs(green_n_goal - green_plot)
-    sum_value += green_penalization
+        green_plot = len(green_dic["pa"])
+        green_penalization = abs(green_n_goal - green_plot)*3
+        penalization_dic["02_green_penalization"] = green_penalization
+        sum_value += green_penalization
 
     # green area penalization
     plot_area = rg.AreaMassProperties.Compute(plot.ToNurbsCurve()).Area
     green_area_goal = plot_area * green_per_area_goal / 100
     if green_dic == {}:
-        green_area_penalization = 1
+        green_area_penalization = green_n_goal 
+        penalization_dic["03_green_area_penalization"] = green_area_penalization*2
     else:
         sum_pa = sum(green_dic["pa"])
         green_area_penalization, out_percentaje = remap(
             sum_pa, green_area_goal, plot_area)
-    sum_value += green_area_penalization
+        penalization_dic["03_green_area_penalization"] = green_area_penalization*2
+        sum_value += green_area_penalization
 
     #print referenced_geo_dic[cpn]
     referenced_geo_chart = []
@@ -856,26 +888,28 @@ def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_g
     weights_order_to_output = []
     referenced_generated_percentaje = []
 
-    parameter_dic = {"pa": "plot area",
-                     "pp": "plot perimeter",
-                     "prba": "plot bbx area",
-                     "papb": "plot area / plot bbx area",
-                     "psvb": "sum building volume",
-                     "sapa": "sum building floor area",
-                     "ccm": "mean distance building to plot centroid",
-                     "com": "mean distance building to plot outline",
-                     "ccv": "variance distance building to plot centroid",
-                     "cov": "variance distance building to plot outline",
-                     "pvbm": "mean building volume",
-                     "pbn": "number buildings",
-                     "pram": "mean building roof area",
-                     "prhm": "mean building roof height"}
+    parameter_dic = {"pa": "04 plot area",
+                     "pp": "05 plot perimeter",
+                     "prba": "06 plot bbx area",
+                     "papb": "07 plot area / plot bbx area",
+                     "psvb": "08 sum building volume",
+                     "sapa": "09 sum building floor area",
+                     "ccm": "15 mean distance building to plot centroid",
+                     "com": "16 mean distance building to plot outline",
+                     "ccv": "17 variance distance building to plot centroid",
+                     "cov": "18 variance distance building to plot outline",
+                     "pvbm": "10 mean building volume",
+                     "pvbv": "11 building volume variance",
+                     "pbn": "12 number buildings",
+                     "pram": "13 mean building roof area",
+                     "prhm": "14 mean building roof height"}
 
     # geometry penalizations
     weights_order = ["pa", "pp","prba","papb","psvb","sapa","ccm","com","ccv","cov","pvbm","pvbv","pbn","pram","prhm"]
     #optimization_values_dic = {}
     if generated_geo_dic == {}:
         sum_value += 20
+        pena_percentaje_dic = penalization_dic
     else:
         for o, w in zip(weights_order, weights):
             goal_values = referenced_geo_dic[cpn][o]
@@ -889,15 +923,31 @@ def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_g
                     value, goal_value, max_value, min_value)
                 geometry_penalization *= w / 2
                 percentajes.append(out_percentaje)
+                if parameter_dic[o] not in penalization_dic.keys():
+                    penalization_dic[parameter_dic[o]] = []
+                penalization_dic[parameter_dic[o]].append(geometry_penalization)
                 sum_value += geometry_penalization
             
             if chart_bool:
                 if o in parameter_dic.keys():
+                    #penalization_dic[parameter_dic[o]] = geometry_penalization
                     weights_order_to_output.append(parameter_dic[o])
                     referenced_geo_chart.append(goal_value)
                     generated_geo_chart.append(mean(generated_values))
                     referenced_generated_percentaje.append(round(mean(percentajes),2))
 
-    return sum_value, weights_order_to_output, referenced_geo_chart, generated_geo_chart, referenced_generated_percentaje
+        penalization_dic_sum = {}
+        for k,v in penalization_dic.items():
+            if isinstance(v, list):
+                penalization_dic_sum[k] = sum(v)
+            else:
+                penalization_dic_sum[k] = v
+        pena_percentaje_dic = compute_pena_percentaje(penalization_dic_sum)
+
+    return sum_value, weights_order_to_output, referenced_geo_chart, generated_geo_chart, referenced_generated_percentaje, pena_percentaje_dic
 
 
+def compute_pena_percentaje(penalization_dic):
+    sum_values = sum([abs(value) for value in penalization_dic.values()])
+    pena_percentaje_dic = {k :  str(round(v*100/sum_values,2))  for k,v in penalization_dic.items()}
+    return pena_percentaje_dic

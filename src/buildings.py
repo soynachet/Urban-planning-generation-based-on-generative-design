@@ -6,7 +6,7 @@ class Buildings:
 
     def __init__ (
         self, plot_polylines, building_width, 
-        building_high, block_min_dis_factor, 
+        building_high, street_width, block_min_dis_factor,
         block_line_length_factor, block_length_factor, 
         design_pick, rgbs, color
         ):
@@ -14,6 +14,7 @@ class Buildings:
         self.plot_polylines = plot_polylines
         self.building_width = building_width
         self.building_high = building_high
+        self.street_width = street_width
         self.block_min_dis_factor = block_min_dis_factor
         self.block_line_length_factor = block_line_length_factor
         self.block_length_factor = block_length_factor
@@ -28,7 +29,7 @@ class Buildings:
     def plot_houses(self):
         return houses_in_plots(
             self.plot_polylines, 
-            self.building_width, self.building_high, 
+            self.building_width, self.building_high, self.street_width,
             self.block_min_dis_factor, self.block_length_factor, 
             self.block_line_length_factor,  self.design_pick, self.rgbs, self.color
             )

@@ -26,7 +26,7 @@ class Optimization:
 
     @property
     def normalize_values_dic(self):
-        return normalize_opt_geo_values_dic_02(self.cr, self.opt_keys, self.opt_values,
+        return normalize_opt_geo_values_dic(self.cr, self.opt_keys, self.opt_values,
                                         self.geo_keys, self.geo_values)
     
     def optimization_value(self):
