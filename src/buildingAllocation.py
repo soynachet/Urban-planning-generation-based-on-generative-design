@@ -2,7 +2,7 @@ import utility
 utility = reload(utility)
 from utility import *
 
-class Buildings:
+class Building:
 
     def __init__ (
         self, plot_polylines, building_width, 
@@ -26,7 +26,7 @@ class Buildings:
         self.offset_plots = offset_plot(self.plot_polylines, self.building_high)
     
     @property
-    def plot_houses(self):
+    def houses_in_subplots(self):
         return houses_in_plots(
             self.plot_polylines, 
             self.building_width, self.building_high, self.street_width,
@@ -34,6 +34,6 @@ class Buildings:
             self.block_line_length_factor,  self.design_pick, self.rgbs, self.color
             )
 
-    def clustering_values_geometry(self):
-        return clustering_values_geometry_compute(self.plot_houses)
+    def compute_optimization_values(self):
+        return clustering_values_geometry_compute(self.houses_in_subplots)
     
