@@ -25,12 +25,12 @@ class Optimization:
 
 
     @property
-    def normalize_values_dic(self):
+    def normalize_values(self):
         return normalize_opt_geo_values_dic(self.cr, self.opt_keys, self.opt_values,
                                         self.geo_keys, self.geo_values)
     
-    def optimization_value(self):
+    def compute_penalization_value(self):
         return compute_optimization_value(self.plot, self.plot_n_goal, self.green_n_goal, self.green_per_area_goal,
-                                          self.cpn, self.normalize_values_dic, self.weights, self.weights_bool, self.chart_bool)
+                                          self.cpn, self.normalize_values, self.weights, self.weights_bool, self.chart_bool)
 
     
