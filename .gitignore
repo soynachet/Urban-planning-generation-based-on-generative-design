@@ -1,0 +1,5 @@
+# Ignore all .3dm files
+*.3dm
+
+# Ignore all .gh files
+*.gh
