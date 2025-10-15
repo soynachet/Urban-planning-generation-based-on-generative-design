@@ -37,12 +37,12 @@ The project aims to generate regulation-aware, traceable urban layouts that bala
 
 ## Fitness Parameters
 
-**Spatial metrics:** plot count, green area ratio, compactness.  
-**Volumetric metrics:** total volume, mean height, density.  
-**Morphological metrics:** building count, footprint size.  
-**Locational metrics:** distance to centroid or perimeter.  
+- **Spatial metrics:** plot count, green area ratio, compactness.  
+- **Volumetric metrics:** total volume, mean height, density.  
+- **Morphological metrics:** building count, footprint size.  
+- **Locational metrics:** distance to centroid or perimeter.  
 
-Constraint penalties are computed as normalized deviations with quadratic scaling, rewarding feasible solutions and penalizing violations.
+- Constraint penalties are computed as normalized deviations with quadratic scaling, rewarding feasible solutions and penalizing violations.
 
 ## Recommended Practices
 
