@@ -486,7 +486,11 @@ def create_container_dict(park_pol, district_pol, plot_pol, building_breps):
                     #building_breps_02.remove(building)
     plot_building_dict_clean = {i: j for i,
                                 j in plot_building_dict.items() if j != []}
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
     # Plots within districts dictionary
     district_pol_bbx_diagonals = [rg.BoundingBox(
         district).Diagonal.Length for district in district_pol]
@@ -548,7 +552,22 @@ def geometry_lists(container_dictionaries, parks):
     return dic_1, dic_2, plot_building_breps, park_breps
 
 
+<<<<<<< HEAD
 def clustering_values_geometry_compute(container_dictionaries):
+=======
+def same_plot(p1, p2):
+    try:
+        return p1.GeometryEquals(p2)
+    except:
+        try:
+            return p1.ToNurbsCurve().GeometryEquals(p2.ToNurbsCurve())
+        except:
+            return False
+
+
+def clustering_values_geometry_compute(container_dictionaries):
+
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
     # geometry dictionaries
     if len(container_dictionaries) == 2:
         plot_building_dict = container_dictionaries[1]
@@ -558,6 +577,7 @@ def clustering_values_geometry_compute(container_dictionaries):
         plot_building_dict = container_dictionaries[1]
         plots_pol = plot_building_dict.keys()
         plot_green_dict = container_dictionaries[2]
+<<<<<<< HEAD
         #print plot_green_dict
 
     ### clustering values ###
@@ -587,11 +607,14 @@ def clustering_values_geometry_compute(container_dictionaries):
     # prhv = plot_roof_heights_variance - out
 
     # g = is_green (0 cast to false and 1 casts to true)
+=======
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
 
     # fullfill first three lists
     patch_building_dict = {}
     clustering_dic = {}
     green_dic = {}
+<<<<<<< HEAD
     for plot in plots_pol:
 
         clustering_dic[plot] = {"pa": None, "pp": None, "prba": None, "papb": None, "psvb": None, 
@@ -613,6 +636,37 @@ def clustering_values_geometry_compute(container_dictionaries):
                 for k, v in clustering_dic[plot].items():
                     if k != "g" and k != "pa":
                         clustering_dic[plot][k] = 0
+=======
+
+    for plot in plots_pol:
+
+        clustering_dic[plot] = {
+            "pa": None, "pp": None, "prba": None, "papb": None, "psvb": None,
+            "sapa": None, "pram": None, "prhm": None, "pbn": None,
+            "ccm": None, "com": None, "ccv": None, "cov": None,
+            "pvbm": None, "pvbv": None
+        }
+
+        breps_in_plot = plot_building_dict[plot]
+        patch = rg.Extrusion.Create(plot.ToNurbsCurve(), 0.2, True)
+
+        pa = rg.AreaMassProperties.Compute(plot.ToNurbsCurve(), 0.001).Area
+        clustering_dic[plot]["pa"] = pa
+
+        # ---------------------------------------------------------
+        # ORIGINAL GREEN LOGIC (RESTORED)
+        # ---------------------------------------------------------
+        if plot_green_dict:
+            if plot in plot_green_dict and plot_green_dict[plot] == "green":
+                green_dic[plot] = "green"
+                clustering_dic[plot]["g"] = 1
+                patch_building_dict[plot] = [breps_in_plot + [patch]]
+
+                for k in clustering_dic[plot].keys():
+                    if k != "g" and k != "pa":
+                        clustering_dic[plot][k] = 0
+
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
                 continue
 
         clustering_dic[plot]["pp"] = plot.Length
@@ -622,6 +676,7 @@ def clustering_values_geometry_compute(container_dictionaries):
         vol_sum = 0
         height_lst = []
         roof_area_lst = []
+<<<<<<< HEAD
         centroid_centroid_lst = []
         centroid_outline_lst = []
         brep_centroids = []
@@ -641,14 +696,51 @@ def clustering_values_geometry_compute(container_dictionaries):
             vol = b.GetVolume()
             vol_sum += vol
             height, roof_area, brep_centroid = brep_face_values(b)
+=======
+        brep_centroids = []
+        vol_lst = []
+
+        for brep in breps_in_plot:
+
+            # NORMALIZAR INPUT
+            b = None
+
+            if isinstance(brep, rg.Brep):
+                b = brep
+
+            elif isinstance(brep, (list, tuple)) and len(brep) > 0:
+                b = brep[0]
+
+            else:
+                try:
+                    # caso Array[Brep]
+                    b = brep[0]
+                except:
+                    continue 
+
+            # VALIDACIoN FINAL
+            if not isinstance(b, rg.Brep):
+                continue
+
+            vol = b.GetVolume()
+            vol_sum += vol
+
+            height, roof_area, brep_centroid = brep_face_values(b)
+
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
             height_lst.append(height)
             roof_area_lst.append(roof_area)
             brep_centroids.append(brep_centroid)
             vol_lst.append(vol)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
         clustering_dic[plot]["psvb"] = vol_sum
         clustering_dic[plot]["sapa"] = (vol_sum / 3.5) / pa
         clustering_dic[plot]["pbn"] = len(breps_in_plot)
         clustering_dic[plot]["pram"] = mean(roof_area_lst)
+<<<<<<< HEAD
         clustering_dic[plot]["prhm"]= mean(height_lst)
         # clustering_dic[plot]["prav"] = variance(roof_area_lst)
         # clustering_dic[plot]["prhv"]= variance(height_lst)
@@ -657,12 +749,25 @@ def clustering_values_geometry_compute(container_dictionaries):
 
         ccm, com, ccv, cov = brep_centroid_values(
             breps_in_plot, plot, brep_centroids)
+=======
+        clustering_dic[plot]["prhm"] = mean(height_lst)
+        clustering_dic[plot]["pvbm"] = mean(vol_lst)
+        clustering_dic[plot]["pvbv"] = variance(vol_lst)
+
+        ccm, com, ccv, cov = brep_centroid_values(
+            breps_in_plot, plot, brep_centroids
+        )
+
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
         clustering_dic[plot]["ccm"] = ccm
         clustering_dic[plot]["com"] = com
         clustering_dic[plot]["ccv"] = ccv
         clustering_dic[plot]["cov"] = cov
 
+<<<<<<< HEAD
         #patch = rg.Extrusion.Create(plot.ToNurbsCurve(), 0.2, True)
+=======
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
         patch_building_dict[plot] = [breps_in_plot + [patch]]
 
     return clustering_dic, patch_building_dict, green_dic
@@ -689,7 +794,10 @@ def normalized_clustering_dict(container_dictionaries):
             normalized_clustering_values[k][vk] = (vv - n_dic[vk]["base"]) / n_dic[vk]["range"]
     return normalized_clustering_values, clustering_values, green_dic
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
 def min_rotated_bbx_area(plot):
     bbx_lst = []
     rotation_angles = [0, 10, 20, 30, 40, 50, 60, 70, 80]
@@ -768,16 +876,30 @@ def normalize(lst):
 
 
 def normalize_opt_geo_values_dic(cr, opt_keys, opt_values, geo_keys, geo_values):
+<<<<<<< HEAD
     # create referenced dictionary
     referenced_geo_dic = {}
     for cluster_n, value_lst in zip(cr, opt_values):
         if cluster_n not in referenced_geo_dic.keys():
             referenced_geo_dic[cluster_n] = {}
+=======
+
+    # ---------------------------------------------------------
+    # CREATE REFERENCED GEO DICTIONARY
+    # ---------------------------------------------------------
+    referenced_geo_dic = {}
+
+    for cluster_n, value_lst in zip(cr, opt_values):
+        if cluster_n not in referenced_geo_dic:
+            referenced_geo_dic[cluster_n] = {}
+
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
         for k, v in zip(opt_keys, value_lst):
             if k not in referenced_geo_dic[cluster_n]:
                 referenced_geo_dic[cluster_n][k] = []
             referenced_geo_dic[cluster_n][k].append(v)
 
+<<<<<<< HEAD
     # create generated geo dictionary
     generated_geo_dic = {}
     green_dic = {}
@@ -799,6 +921,34 @@ def normalize_opt_geo_values_dic(cr, opt_keys, opt_values, geo_keys, geo_values)
                         generated_geo_dic[k] = []
                     generated_geo_dic[k].append(v)
     #print generated_geo_dic
+=======
+    # ---------------------------------------------------------
+    # CREATE GENERATED GEO DICTIONARY
+    # ---------------------------------------------------------
+    generated_geo_dic = {}
+    green_dic = {}
+
+    for lst_values in geo_values:
+
+        # GREEN CASE
+        if lst_values[0] == 1:
+            pa_index = geo_keys.index("pa")
+
+            if "pa" not in green_dic:
+                green_dic["pa"] = []
+
+            green_dic["pa"].append(lst_values[pa_index])
+
+        # NON-GREEN CASE
+        else:
+            geo_keys_filtered = [k for k in geo_keys if k != "g"]
+
+            for k, v in zip(geo_keys_filtered, lst_values):
+                if k not in generated_geo_dic:
+                    generated_geo_dic[k] = []
+                generated_geo_dic[k].append(v)
+
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
     return referenced_geo_dic, generated_geo_dic, green_dic
 
 
@@ -841,7 +991,18 @@ def compute_penalty(val, val_goal, max_value, min_value=0):
     return penalty
 
 
+<<<<<<< HEAD
 def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_goal, cpn, normalize_values_dic, weights, weights_bool, chart_bool):
+=======
+def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_goal,
+                               cpn, normalize_values_dic, weights, weights_bool,
+                               chart_bool, penalty_type):
+    
+    print ("penalty", penalty_type)
+
+    import math
+
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
     referenced_geo_dic = normalize_values_dic[0]
     generated_geo_dic = normalize_values_dic[1]
     green_dic = normalize_values_dic[2]
@@ -849,6 +1010,7 @@ def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_g
 
     sum_value = 0
     plot_n_goal -= green_n_goal
+<<<<<<< HEAD
     # plot goals penalization
     if generated_geo_dic == {}:
         plot_penalization = plot_n_goal * 4
@@ -875,19 +1037,65 @@ def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_g
     if green_dic == {}:
         green_area_penalization = green_n_goal 
         penalization_dic["03_green_area_penalization"] = green_area_penalization*2
+=======
+
+    # -----------------------------
+    # Plot penalization
+    # -----------------------------
+    if generated_geo_dic == {}:
+        plot_penalization = plot_n_goal * 4
+    else:
+        plots = len(generated_geo_dic["pa"])
+        plot_penalization = abs(plot_n_goal - plots) * 4
+
+    penalization_dic["01_plot_penalization"] = plot_penalization
+    sum_value += plot_penalization
+
+    # -----------------------------
+    # Green count penalization
+    # -----------------------------
+    if green_dic == {}:
+        green_penalization = green_n_goal * 3
+    else:
+        green_plot = len(green_dic["pa"])
+        green_penalization = abs(green_n_goal - green_plot) * 3
+
+    penalization_dic["02_green_penalization"] = green_penalization
+    sum_value += green_penalization
+
+    # -----------------------------
+    # Green area penalization
+    # -----------------------------
+    plot_area = rg.AreaMassProperties.Compute(plot.ToNurbsCurve()).Area
+    green_area_goal = plot_area * green_per_area_goal / 100
+
+    if green_dic == {}:
+        green_area_penalization = green_n_goal
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
     else:
         sum_pa = sum(green_dic["pa"])
         green_area_penalization, out_percentaje = remap(
             sum_pa, green_area_goal, plot_area)
+<<<<<<< HEAD
         penalization_dic["03_green_area_penalization"] = green_area_penalization*2
         sum_value += green_area_penalization
 
     #print referenced_geo_dic[cpn]
+=======
+
+    penalization_dic["03_green_area_penalization"] = green_area_penalization * 2
+    sum_value += green_area_penalization
+
+    # -----------------------------
+    # Charts
+    # -----------------------------
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
     referenced_geo_chart = []
     generated_geo_chart = []
     weights_order_to_output = []
     referenced_generated_percentaje = []
 
+<<<<<<< HEAD
     parameter_dic = {"pa": "04 plot area",
                      "pp": "05 plot perimeter",
                      "prba": "06 plot bbx area",
@@ -938,13 +1146,114 @@ def compute_optimization_value(plot, plot_n_goal, green_n_goal, green_per_area_g
 
         penalization_dic_sum = {}
         for k,v in penalization_dic.items():
+=======
+    parameter_dic = {
+        "pa": "04 plot area",
+        "pp": "05 plot perimeter",
+        "prba": "06 plot bbx area",
+        "papb": "07 plot area / plot bbx area",
+        "psvb": "08 sum building volume",
+        "sapa": "09 sum building floor area",
+        "ccm": "15 mean distance building to plot centroid",
+        "com": "16 mean distance building to plot outline",
+        "ccv": "17 variance distance building to plot centroid",
+        "cov": "18 variance distance building to plot outline",
+        "pvbm": "10 mean building volume",
+        "pvbv": "11 building volume variance",
+        "pbn": "12 number buildings",
+        "pram": "13 mean building roof area",
+        "prhm": "14 mean building roof height"
+    }
+
+    weights_order = ["pa", "pp","prba","papb","psvb","sapa",
+                     "ccm","com","ccv","cov","pvbm","pvbv",
+                     "pbn","pram","prhm"]
+
+    # -----------------------------
+    # Geometry penalization
+    # -----------------------------
+    if generated_geo_dic == {}:
+        sum_value += 20
+        pena_percentaje_dic = penalization_dic
+
+    else:
+        gamma = 2.0  # for exponential
+
+        for o, w in zip(weights_order, weights):
+
+            goal_values = referenced_geo_dic[cpn][o]
+            goal_value = mean(goal_values)
+            max_value = max(goal_values)
+            min_value = min(goal_values)
+
+            generated_values = generated_geo_dic[o]
+            percentajes = []
+
+            for value in generated_values:
+
+                # base penalty (linear)
+                base_penalty, out_percentaje = remap(
+                    value, goal_value, max_value, min_value)
+
+                # -----------------------------
+                # APPLY PENALTY TYPE
+                # -----------------------------
+                if penalty_type == "linear":
+                    p = base_penalty
+
+                elif penalty_type == "quadratic":
+                    p = base_penalty ** 2
+
+                elif penalty_type == "exp":
+                    p = math.exp(gamma * base_penalty) - 1
+
+                else:
+                    # fallback safety
+                    p = base_penalty
+
+                geometry_penalization = p * (w / 2)
+
+                percentajes.append(out_percentaje)
+
+                if parameter_dic[o] not in penalization_dic:
+                    penalization_dic[parameter_dic[o]] = []
+
+                penalization_dic[parameter_dic[o]].append(geometry_penalization)
+
+                sum_value += geometry_penalization
+
+            if chart_bool:
+                if o in parameter_dic:
+                    weights_order_to_output.append(parameter_dic[o])
+                    referenced_geo_chart.append(goal_value)
+                    generated_geo_chart.append(mean(generated_values))
+                    referenced_generated_percentaje.append(round(mean(percentajes), 2))
+
+        # -----------------------------
+        # Aggregate penalties
+        # -----------------------------
+        penalization_dic_sum = {}
+        for k, v in penalization_dic.items():
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
             if isinstance(v, list):
                 penalization_dic_sum[k] = sum(v)
             else:
                 penalization_dic_sum[k] = v
+<<<<<<< HEAD
         pena_percentaje_dic = compute_pena_percentaje(penalization_dic_sum)
 
     return sum_value, weights_order_to_output, referenced_geo_chart, generated_geo_chart, referenced_generated_percentaje, pena_percentaje_dic
+=======
+
+        pena_percentaje_dic = compute_pena_percentaje(penalization_dic_sum)
+
+    return (sum_value,
+            weights_order_to_output,
+            referenced_geo_chart,
+            generated_geo_chart,
+            referenced_generated_percentaje,
+            pena_percentaje_dic)
+>>>>>>> 964c2d7 (Extend geometry processing and clustering computation with robust Brep handling)
 
 
 def compute_pena_percentaje(penalization_dic):
