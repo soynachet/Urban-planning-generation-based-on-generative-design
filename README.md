@@ -56,8 +56,25 @@ The project aims to generate regulation-aware, traceable urban layouts that bala
 Inputs may include geometric files such as **GeoJSON**, **DXF**, or **3DM**, and configuration files in **CSV** or **JSON** format.  
 Outputs consist of optimized Rhino geometries and logs of fitness values and constraints.
 
+## Clustering Validation (Paper Reproducibility)
+
+The internal clustering validity metrics reported in the paper (average silhouette score and Davies–Bouldin index) are computed outside Rhino using Python 3.
+
+### Steps
+
+1. Export the normalized feature matrix from Grasshopper:
+   `clustering_features_normalized.csv`
+
+2. Run the validation script:
+   `python analysis/clustering_validation.py`
+
+3. The script evaluates clustering performance for:
+   `K = 4, 5, 6, 7`
+
+This produces the values reported in Table 1 of the paper.
+
 ## Authors
 
 **Ignacio Pérez Martínez**  
-**Marí­a Martí­nez Rojas**  
+**María Martínez Rojas**  
 **Jose Manuel Soto Hidalgo**

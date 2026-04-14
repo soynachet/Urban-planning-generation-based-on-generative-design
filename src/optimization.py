@@ -7,11 +7,7 @@ class Optimization:
 
     def __init__(
         self, plot, plot_n_goal, green_n_goal, green_per_area_goal, clustering_pick_n, clustering_results,
-<<<<<<< HEAD
-        opt_keys, opt_values, geo_keys, geo_values, weights, weights_bool, chart_bool
-=======
         opt_keys, opt_values, geo_keys, geo_values, weights, weights_bool, chart_bool, penalty_type
->>>>>>> b720c0d (Add configurable penalty formulations (linear, quadratic, exponential))
         ):
         self.plot = plot
         self.plot_n_goal = plot_n_goal
@@ -26,10 +22,7 @@ class Optimization:
         self.weights = weights
         self.weights_bool = weights_bool
         self.chart_bool = chart_bool
-<<<<<<< HEAD
-=======
         self.penalty_type = penalty_type
->>>>>>> b720c0d (Add configurable penalty formulations (linear, quadratic, exponential))
 
 
     @property
@@ -39,10 +32,6 @@ class Optimization:
     
     def compute_penalization_value(self):
         return compute_optimization_value(self.plot, self.plot_n_goal, self.green_n_goal, self.green_per_area_goal,
-<<<<<<< HEAD
-                                          self.cpn, self.normalize_values, self.weights, self.weights_bool, self.chart_bool)
-=======
                                           self.cpn, self.normalize_values, self.weights, self.weights_bool, self.chart_bool, self.penalty_type)
->>>>>>> b720c0d (Add configurable penalty formulations (linear, quadratic, exponential))
 
     
